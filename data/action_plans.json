@@ -93,7 +93,7 @@
     "actions": [
       {"action": "당사 ESG 팀장-최동현 수석 미팅 주선", "due": "2025-12-10", "status": "미완료", "result": null},
       {"action": "독자 ESG 스코어링 방법론 소개 자료 준비", "due": "2025-12-05", "status": "미완료", "result": null},
-      {"action": "신재생에너지 소형주 커버리지 추가 계획 공유", "due": "2025-12-15", "result": null}
+      {"action": "신재생에너지 소형주 커버리지 추가 계획 공유", "due": "2025-12-15", "status": "미완료", "result": null}
     ],
     "outcome": null
   }
