@@ -95,6 +95,11 @@ def load_customer_results(customer_id: str) -> dict:
 
 # ─── 페이지 라우트 ────────────────────────────────────────────────────────────
 
+@app.get("/test")
+async def test():
+    return {"status": "ok", "message": "App is running"}
+
+
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request):
     try:
@@ -108,18 +113,29 @@ async def dashboard(request: Request):
 
     try:
         personas = dt.get_all_personas()
-        analyzed_ids = [p.get("customer_id") for p in personas if isinstance(p, dict) and p.get("customer_id")]
+        analyzed_ids = [
+            str(p.get("customer_id"))
+            for p in personas
+            if isinstance(p, dict) and p.get("customer_id") and isinstance(p.get("customer_id"), str)
+        ]
     except Exception:
         analyzed_ids = []
 
-    return templates.TemplateResponse(
-        "index.html",
-        {
-            "request": request,
-            "customers": customers,
-            "analyzed_ids": analyzed_ids,
-        },
-    )
+    try:
+        return templates.TemplateResponse(
+            "index.html",
+            {
+                "request": request,
+                "customers": customers,
+                "analyzed_ids": analyzed_ids,
+            },
+        )
+    except Exception as e:
+        import traceback
+        return HTMLResponse(
+            f"<pre>Template rendering error:\n{traceback.format_exc()}</pre>",
+            status_code=500,
+        )
 
 
 @app.get("/customer/{customer_id}", response_class=HTMLResponse)
