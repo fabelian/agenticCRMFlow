@@ -97,10 +97,18 @@ def load_customer_results(customer_id: str) -> dict:
 
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request):
-    customers = dt.get_all_customers()
+    try:
+        customers = dt.get_all_customers()
+        if isinstance(customers, dict):
+            customers = list(customers.values()) if customers else []
+        elif not isinstance(customers, list):
+            customers = []
+    except Exception:
+        customers = []
+
     try:
         personas = dt.get_all_personas()
-        analyzed_ids = [p.get("customer_id") for p in personas if p.get("customer_id")]
+        analyzed_ids = [p.get("customer_id") for p in personas if isinstance(p, dict) and p.get("customer_id")]
     except Exception:
         analyzed_ids = []
 
