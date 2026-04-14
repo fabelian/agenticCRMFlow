@@ -85,16 +85,22 @@ def save_persona(customer_id: str, persona: dict) -> None:
 
 
 def get_persona(customer_id: str) -> dict | None:
-    from db.database import Persona
-    with _session() as session:
-        row = session.query(Persona).filter_by(customer_id=customer_id).first()
-        return row.data if row else None
+    try:
+        from db.database import Persona
+        with _session() as session:
+            row = session.query(Persona).filter_by(customer_id=customer_id).first()
+            return row.data if row else None
+    except Exception:
+        return None
 
 
 def get_all_personas() -> list:
-    from db.database import Persona
-    with _session() as session:
-        return [row.data for row in session.query(Persona).all()]
+    try:
+        from db.database import Persona
+        with _session() as session:
+            return [row.data for row in session.query(Persona).all()]
+    except Exception:
+        return []
 
 
 # ─── NBA 추천 관리 (DB) ───────────────────────────────────────────────────────
@@ -114,10 +120,13 @@ def save_nba(customer_id: str, nba_data: dict) -> None:
 
 
 def get_nba(customer_id: str) -> dict | None:
-    from db.database import NBAResult
-    with _session() as session:
-        row = session.query(NBAResult).filter_by(customer_id=customer_id).first()
-        return row.data if row else None
+    try:
+        from db.database import NBAResult
+        with _session() as session:
+            row = session.query(NBAResult).filter_by(customer_id=customer_id).first()
+            return row.data if row else None
+    except Exception:
+        return None
 
 
 # ─── 활동 일정 관리 (DB) ──────────────────────────────────────────────────────
@@ -135,10 +144,13 @@ def save_activities(customer_id: str, activities: list) -> None:
 
 
 def get_activities(customer_id: str) -> list:
-    from db.database import ActivitySchedule
-    with _session() as session:
-        row = session.query(ActivitySchedule).filter_by(customer_id=customer_id).first()
-        return row.data if row else []
+    try:
+        from db.database import ActivitySchedule
+        with _session() as session:
+            row = session.query(ActivitySchedule).filter_by(customer_id=customer_id).first()
+            return row.data if row else []
+    except Exception:
+        return []
 
 
 # ─── QC 보고서 관리 (DB) ──────────────────────────────────────────────────────
@@ -158,10 +170,13 @@ def save_qc_report(customer_id: str, report: dict) -> None:
 
 
 def get_qc_report(customer_id: str) -> dict | None:
-    from db.database import QCReport
-    with _session() as session:
-        row = session.query(QCReport).filter_by(customer_id=customer_id).first()
-        return row.data if row else None
+    try:
+        from db.database import QCReport
+        with _session() as session:
+            row = session.query(QCReport).filter_by(customer_id=customer_id).first()
+            return row.data if row else None
+    except Exception:
+        return None
 
 
 # ─── 전체 컨텍스트 조합 ───────────────────────────────────────────────────────
