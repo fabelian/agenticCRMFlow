@@ -7,6 +7,7 @@ BaseAgent: 모든 에이전트의 공통 Agentic Loop 구현
 import json
 import sys
 import io
+import time
 from anthropic import Anthropic
 
 if sys.stdout.encoding != "utf-8":
@@ -143,6 +144,23 @@ class BaseAgent:
 
     # ── OpenRouter / OpenAI 호환 루프 ──────────────────────────────────────
 
+    def _openrouter_create_with_retry(self, kwargs: dict, max_retries: int = 4):
+        """429 rate limit 시 지수 백오프로 재시도"""
+        from openai import RateLimitError
+        for attempt in range(max_retries):
+            try:
+                return self.client.chat.completions.create(**kwargs)
+            except RateLimitError as e:
+                if attempt < max_retries - 1:
+                    wait = 5 * (2 ** attempt)  # 5s → 10s → 20s → 40s
+                    self._log(f"429 rate limit — {wait}초 후 재시도 ({attempt + 1}/{max_retries})")
+                    time.sleep(wait)
+                else:
+                    raise RuntimeError(
+                        f"OpenRouter rate limit 초과 (모델: {self.model}). "
+                        "잠시 후 다시 시도하거나 다른 모델을 선택하세요."
+                    ) from e
+
     def _run_openrouter(self, prompt: str) -> str:
         # 시스템 메시지를 첫 번째 메시지로 포함
         messages = []
@@ -161,7 +179,7 @@ class BaseAgent:
             if openai_tools:
                 kwargs["tools"] = openai_tools
 
-            response = self.client.chat.completions.create(**kwargs)
+            response = self._openrouter_create_with_retry(kwargs)
             choice = response.choices[0]
             msg = choice.message
             finish_reason = choice.finish_reason

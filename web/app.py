@@ -60,7 +60,17 @@ MODEL_REGISTRY: dict[str, dict] = {
     "google/gemma-4-26b-a4b-it:free": {
         "label": "Gemma 4 26B (무료)",
         "provider": "openrouter",
-        "description": "OpenRouter 무료 모델",
+        "description": "OpenRouter 무료 — rate limit 있음",
+    },
+    "meta-llama/llama-4-scout:free": {
+        "label": "Llama 4 Scout (무료)",
+        "provider": "openrouter",
+        "description": "OpenRouter 무료 — rate limit 있음",
+    },
+    "deepseek/deepseek-chat-v3-0324:free": {
+        "label": "DeepSeek V3 (무료)",
+        "provider": "openrouter",
+        "description": "OpenRouter 무료 — rate limit 있음",
     },
 }
 
