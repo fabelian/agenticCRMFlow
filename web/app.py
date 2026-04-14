@@ -18,8 +18,11 @@ from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
 
-# .env 로딩 (프로젝트 루트)
-load_dotenv(Path(__file__).parent.parent / ".env", override=True)
+# .env 로딩 (로컬 개발 전용)
+# Railway 환경에서는 환경 변수가 직접 설정되므로 .env 파일이 없어도 정상 동작
+env_file = Path(__file__).parent.parent / ".env"
+if env_file.exists():
+    load_dotenv(env_file, override=False)  # 기존 환경 변수를 덮어쓰지 않음
 
 # src/ 디렉토리를 sys.path에 추가
 sys.path.insert(0, str(Path(__file__).parent.parent / "src"))
@@ -131,16 +134,19 @@ async def dashboard(request: Request):
             customers = list(customers.values()) if customers else []
         elif not isinstance(customers, list):
             customers = []
+        customers = [c for c in customers if isinstance(c, dict)]
     except Exception:
         customers = []
 
     try:
         personas = dt.get_all_personas()
-        analyzed_ids = [
-            str(p.get("customer_id"))
-            for p in personas
-            if isinstance(p, dict) and p.get("customer_id") and isinstance(p.get("customer_id"), str)
-        ]
+        analyzed_ids = []
+        if isinstance(personas, list):
+            for p in personas:
+                if isinstance(p, dict) and "customer_id" in p:
+                    cid = p.get("customer_id")
+                    if isinstance(cid, str):
+                        analyzed_ids.append(cid)
     except Exception:
         analyzed_ids = []
 
@@ -149,8 +155,8 @@ async def dashboard(request: Request):
             request,
             "index.html",
             {
-                "customers": customers,
-                "analyzed_ids": analyzed_ids,
+                "customers": json.loads(json.dumps(customers)),
+                "analyzed_ids": json.loads(json.dumps(analyzed_ids)),
             },
         )
     except Exception as e:
