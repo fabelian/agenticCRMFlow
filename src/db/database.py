@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 from sqlalchemy import create_engine, Column, String
 from sqlalchemy.orm import sessionmaker, declarative_base
+from sqlalchemy.orm.attributes import flag_modified
 from sqlalchemy.types import JSON
 
 _DEFAULT_DB = f"sqlite:///{Path(__file__).parent.parent.parent / 'crm.db'}"

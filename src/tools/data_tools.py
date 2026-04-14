@@ -71,13 +71,14 @@ def get_pending_actions(customer_id: str) -> list:
 # ─── 페르소나 관리 (DB) ───────────────────────────────────────────────────────
 
 def save_persona(customer_id: str, persona: dict) -> None:
-    from db.database import Persona
+    from db.database import Persona, flag_modified
     persona["customer_id"] = customer_id
     persona["updated_at"] = datetime.now().strftime("%Y-%m-%d")
     with _session() as session:
         existing = session.query(Persona).filter_by(customer_id=customer_id).first()
         if existing:
             existing.data = persona
+            flag_modified(existing, "data")
         else:
             session.add(Persona(customer_id=customer_id, data=persona))
         session.commit()
@@ -99,13 +100,14 @@ def get_all_personas() -> list:
 # ─── NBA 추천 관리 (DB) ───────────────────────────────────────────────────────
 
 def save_nba(customer_id: str, nba_data: dict) -> None:
-    from db.database import NBAResult
+    from db.database import NBAResult, flag_modified
     nba_data["customer_id"] = customer_id
     nba_data["generated_at"] = datetime.now().strftime("%Y-%m-%d")
     with _session() as session:
         existing = session.query(NBAResult).filter_by(customer_id=customer_id).first()
         if existing:
             existing.data = nba_data
+            flag_modified(existing, "data")
         else:
             session.add(NBAResult(customer_id=customer_id, data=nba_data))
         session.commit()
@@ -121,11 +123,12 @@ def get_nba(customer_id: str) -> dict | None:
 # ─── 활동 일정 관리 (DB) ──────────────────────────────────────────────────────
 
 def save_activities(customer_id: str, activities: list) -> None:
-    from db.database import ActivitySchedule
+    from db.database import ActivitySchedule, flag_modified
     with _session() as session:
         existing = session.query(ActivitySchedule).filter_by(customer_id=customer_id).first()
         if existing:
             existing.data = activities
+            flag_modified(existing, "data")
         else:
             session.add(ActivitySchedule(customer_id=customer_id, data=activities))
         session.commit()
@@ -141,13 +144,14 @@ def get_activities(customer_id: str) -> list:
 # ─── QC 보고서 관리 (DB) ──────────────────────────────────────────────────────
 
 def save_qc_report(customer_id: str, report: dict) -> None:
-    from db.database import QCReport
+    from db.database import QCReport, flag_modified
     report["customer_id"] = customer_id
     report["reviewed_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
     with _session() as session:
         existing = session.query(QCReport).filter_by(customer_id=customer_id).first()
         if existing:
             existing.data = report
+            flag_modified(existing, "data")
         else:
             session.add(QCReport(customer_id=customer_id, data=report))
         session.commit()
