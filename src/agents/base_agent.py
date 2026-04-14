@@ -126,10 +126,15 @@ class BaseAgent:
                             "content": content,
                         })
                     except Exception as e:
+                        import traceback
+                        error_msg = f"{type(e).__name__}: {str(e)}"
+                        error_trace = traceback.format_exc()
+                        self._log(f"도구 실행 오류: {error_msg}")
+                        self._log(f"스택 트레이스:\n{error_trace}")
                         tool_results.append({
                             "type": "tool_result",
                             "tool_use_id": block.id,
-                            "content": json.dumps({"error": str(e)}, ensure_ascii=False),
+                            "content": json.dumps({"error": error_msg, "traceback": error_trace}, ensure_ascii=False),
                             "is_error": True,
                         })
 
@@ -228,7 +233,12 @@ class BaseAgent:
                         result = self.execute_tool(tc.function.name, tool_input)
                         content = json.dumps(result, ensure_ascii=False, indent=2)
                     except Exception as e:
-                        content = json.dumps({"error": str(e)}, ensure_ascii=False)
+                        import traceback
+                        error_msg = f"{type(e).__name__}: {str(e)}"
+                        error_trace = traceback.format_exc()
+                        self._log(f"도구 실행 오류: {error_msg}")
+                        self._log(f"스택 트레이스:\n{error_trace}")
+                        content = json.dumps({"error": error_msg, "traceback": error_trace}, ensure_ascii=False)
 
                     messages.append({
                         "role": "tool",
