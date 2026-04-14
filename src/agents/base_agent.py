@@ -1,6 +1,7 @@
 """
 BaseAgent: 모든 에이전트의 공통 Agentic Loop 구현
-Claude API tool_use 패턴 기반
+- provider="anthropic" : Anthropic SDK (tool_use 패턴)
+- provider="openrouter": OpenRouter OpenAI 호환 API (function calling 패턴)
 """
 
 import json
@@ -20,12 +21,25 @@ class BaseAgent:
     하위 클래스는 execute_tool()만 구현하면 됨.
     """
 
-    def __init__(self, name: str, model: str, system_prompt: str, tools: list):
+    def __init__(
+        self,
+        name: str,
+        model: str,
+        system_prompt: str,
+        tools: list,
+        provider: str = "anthropic",
+    ):
         self.name = name
         self.model = model
         self.system_prompt = system_prompt
         self.tools = tools
-        self.client = Anthropic()
+        self.provider = provider
+
+        if provider == "anthropic":
+            self.client = Anthropic()
+        else:
+            from tools.openrouter_client import get_client
+            self.client = get_client()
 
     def execute_tool(self, tool_name: str, tool_input: dict) -> dict:
         """도구 실행 — 하위 클래스에서 반드시 구현"""
@@ -34,11 +48,28 @@ class BaseAgent:
     def _log(self, msg: str) -> None:
         print(f"  [{self.name}] {msg}", flush=True)
 
+    def _to_openai_tools(self) -> list:
+        """Anthropic input_schema 형식 → OpenAI function calling 형식 변환"""
+        return [
+            {
+                "type": "function",
+                "function": {
+                    "name": tool["name"],
+                    "description": tool.get("description", ""),
+                    "parameters": tool.get("input_schema", {"type": "object", "properties": {}}),
+                },
+            }
+            for tool in self.tools
+        ]
+
     def run(self, prompt: str) -> str:
-        """
-        Agentic Loop 실행.
-        stop_reason == 'end_turn' 이 될 때까지 tool_use 결과를 반복 처리.
-        """
+        if self.provider == "anthropic":
+            return self._run_anthropic(prompt)
+        return self._run_openrouter(prompt)
+
+    # ── Anthropic SDK 루프 ──────────────────────────────────────────────────
+
+    def _run_anthropic(self, prompt: str) -> str:
         messages = [{"role": "user", "content": prompt}]
         self._log("시작")
 
@@ -58,22 +89,18 @@ class BaseAgent:
         while True:
             response = self.client.messages.create(**kwargs)
 
-            # 텍스트 블록 수집
             text_blocks = [b for b in response.content if b.type == "text"]
             tool_blocks = [b for b in response.content if b.type == "tool_use"]
 
-            # 텍스트 실시간 출력 (있을 경우)
             for tb in text_blocks:
                 if tb.text.strip():
                     print(tb.text, flush=True)
                     collected_text.append(tb.text)
 
-            # ── 종료 조건 ──────────────────────────────────────
             if response.stop_reason == "end_turn":
                 self._log("완료")
                 return " ".join(collected_text).strip()
 
-            # ── 토큰 한도 도달: 계속 생성 요청 ────────────────
             if response.stop_reason == "max_tokens":
                 continuation_count += 1
                 if continuation_count >= max_continuations:
@@ -85,7 +112,6 @@ class BaseAgent:
                 kwargs["messages"] = messages
                 continue
 
-            # ── 도구 실행 ──────────────────────────────────────
             if response.stop_reason == "tool_use" and tool_blocks:
                 tool_results = []
                 for block in tool_blocks:
@@ -110,8 +136,89 @@ class BaseAgent:
                 messages.append({"role": "user", "content": tool_results})
                 kwargs["messages"] = messages
             else:
-                # 예기치 않은 stop_reason
                 self._log(f"예기치 않은 stop_reason: {response.stop_reason}")
+                break
+
+        return " ".join(collected_text).strip()
+
+    # ── OpenRouter / OpenAI 호환 루프 ──────────────────────────────────────
+
+    def _run_openrouter(self, prompt: str) -> str:
+        # 시스템 메시지를 첫 번째 메시지로 포함
+        messages = []
+        if self.system_prompt:
+            messages.append({"role": "system", "content": self.system_prompt})
+        messages.append({"role": "user", "content": prompt})
+        self._log(f"시작 (OpenRouter · {self.model})")
+
+        openai_tools = self._to_openai_tools() if self.tools else None
+        collected_text = []
+        max_continuations = 5
+        continuation_count = 0
+
+        while True:
+            kwargs = dict(model=self.model, messages=messages)
+            if openai_tools:
+                kwargs["tools"] = openai_tools
+
+            response = self.client.chat.completions.create(**kwargs)
+            choice = response.choices[0]
+            msg = choice.message
+            finish_reason = choice.finish_reason
+
+            if msg.content:
+                print(msg.content, flush=True)
+                collected_text.append(msg.content)
+
+            if finish_reason == "stop":
+                self._log("완료")
+                return " ".join(collected_text).strip()
+
+            if finish_reason == "length":
+                continuation_count += 1
+                if continuation_count >= max_continuations:
+                    self._log(f"length 한도({max_continuations}회) 도달 — 루프 종료")
+                    break
+                self._log(f"length 도달 — 계속 생성 ({continuation_count}/{max_continuations})")
+                messages.append({"role": "assistant", "content": msg.content or ""})
+                messages.append({"role": "user", "content": "계속 작성해주세요. 중단된 부분부터 이어서 완성해주세요."})
+                continue
+
+            if finish_reason == "tool_calls" and msg.tool_calls:
+                # assistant 메시지 추가 (tool_calls 포함)
+                messages.append({
+                    "role": "assistant",
+                    "content": msg.content,
+                    "tool_calls": [
+                        {
+                            "id": tc.id,
+                            "type": "function",
+                            "function": {
+                                "name": tc.function.name,
+                                "arguments": tc.function.arguments,
+                            },
+                        }
+                        for tc in msg.tool_calls
+                    ],
+                })
+
+                # 각 도구 실행 후 결과 추가
+                for tc in msg.tool_calls:
+                    self._log(f"도구 호출: {tc.function.name}")
+                    try:
+                        tool_input = json.loads(tc.function.arguments)
+                        result = self.execute_tool(tc.function.name, tool_input)
+                        content = json.dumps(result, ensure_ascii=False, indent=2)
+                    except Exception as e:
+                        content = json.dumps({"error": str(e)}, ensure_ascii=False)
+
+                    messages.append({
+                        "role": "tool",
+                        "tool_call_id": tc.id,
+                        "content": content,
+                    })
+            else:
+                self._log(f"예기치 않은 finish_reason: {finish_reason}")
                 break
 
         return " ".join(collected_text).strip()

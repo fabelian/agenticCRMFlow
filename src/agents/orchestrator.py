@@ -103,13 +103,16 @@ DIVIDER = "=" * 60
 
 
 class OrchestratorAgent(BaseAgent):
-    def __init__(self):
+    def __init__(self, model: str = None, provider: str = "anthropic"):
         super().__init__(
             name="Orchestrator",
-            model=MODEL,
+            model=model or MODEL,
             system_prompt=SYSTEM_PROMPT,
             tools=TOOLS,
+            provider=provider,
         )
+        self._sub_model = model or MODEL
+        self._sub_provider = provider
         # 하위 에이전트 레지스트리 (지연 초기화)
         self._agents: dict = {}
 
@@ -121,7 +124,10 @@ class OrchestratorAgent(BaseAgent):
                 "activity": ActivityAgent,
                 "qc": QCAgent,
             }
-            self._agents[name] = mapping[name]()
+            self._agents[name] = mapping[name](
+                model=self._sub_model,
+                provider=self._sub_provider,
+            )
         return self._agents[name]
 
     def execute_tool(self, tool_name: str, tool_input: dict) -> dict:

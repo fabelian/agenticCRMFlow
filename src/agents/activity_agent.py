@@ -73,12 +73,13 @@ TOOLS = [
 
 
 class ActivityAgent(BaseAgent):
-    def __init__(self):
+    def __init__(self, model: str = None, provider: str = "anthropic"):
         super().__init__(
             name="ActivityAgent",
-            model=MODEL,
+            model=model or MODEL,
             system_prompt=SYSTEM_PROMPT,
             tools=TOOLS,
+            provider=provider,
         )
 
     def execute_tool(self, tool_name: str, tool_input: dict) -> dict:

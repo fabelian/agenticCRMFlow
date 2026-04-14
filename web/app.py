@@ -14,8 +14,9 @@ from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, Request
-from fastapi.responses import HTMLResponse, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
+from pydantic import BaseModel
 
 # .env 로딩 (프로젝트 루트)
 load_dotenv(Path(__file__).parent.parent / ".env", override=True)
@@ -40,6 +41,28 @@ def _load_json(filename: str):
 app = FastAPI(title="CRM 멀티에이전트 시스템", lifespan=lifespan)
 templates = Jinja2Templates(directory=str(Path(__file__).parent / "templates"))
 
+# ─── 모델 레지스트리 ──────────────────────────────────────────────────────────
+
+MODEL_REGISTRY: dict[str, dict] = {
+    "claude-opus-4-6": {
+        "label": "Claude Opus 4.6",
+        "provider": "anthropic",
+        "description": "최고 성능 (기본값)",
+    },
+    "claude-sonnet-4-6": {
+        "label": "Claude Sonnet 4.6",
+        "provider": "anthropic",
+        "description": "빠른 속도 · 낮은 비용",
+    },
+    "google/gemma-4-26b-a4b-it:free": {
+        "label": "Gemma 4 26B (무료)",
+        "provider": "openrouter",
+        "description": "OpenRouter 무료 모델",
+    },
+}
+
+_model_setting: dict[str, str] = {"model": "claude-opus-4-6"}
+
 # 현재 실행 중인 분석 고객 ID 집합 (중복 방지)
 running_set: set[str] = set()
 
@@ -63,11 +86,11 @@ class StreamCapture(io.TextIOBase):
 
 # ─── 파이프라인 실행 (별도 스레드) ───────────────────────────────────────────
 
-def run_pipeline(customer_id: str, q: queue.Queue) -> None:
+def run_pipeline(customer_id: str, q: queue.Queue, model: str = "claude-opus-4-6", provider: str = "anthropic") -> None:
     old_stdout = sys.stdout
     sys.stdout = StreamCapture(q)
     try:
-        orchestrator = OrchestratorAgent()
+        orchestrator = OrchestratorAgent(model=model, provider=provider)
         orchestrator.run(customer_id)
     except Exception as e:
         q.put(f"[ERROR] {e}")
@@ -156,6 +179,32 @@ async def customer_page(request: Request, customer_id: str):
 
 # ─── API 라우트 ───────────────────────────────────────────────────────────────
 
+class ModelSelect(BaseModel):
+    model: str
+
+
+@app.get("/api/models")
+async def api_models():
+    """사용 가능한 모델 목록과 현재 선택 반환"""
+    return {
+        "current": _model_setting["model"],
+        "models": [
+            {"id": mid, **meta}
+            for mid, meta in MODEL_REGISTRY.items()
+        ],
+    }
+
+
+@app.post("/api/model")
+async def api_set_model(body: ModelSelect):
+    """현재 사용 모델 변경"""
+    if body.model not in MODEL_REGISTRY:
+        return JSONResponse({"error": f"지원하지 않는 모델: {body.model}"}, status_code=400)
+    _model_setting["model"] = body.model
+    meta = MODEL_REGISTRY[body.model]
+    return {"selected": body.model, "label": meta["label"], "provider": meta["provider"]}
+
+
 @app.get("/api/customers")
 async def api_customers():
     return dt.get_all_customers()
@@ -183,9 +232,11 @@ async def api_analyze(customer_id: str):
         q: queue.Queue = queue.Queue()
         running_set.add(customer_id)
 
+        selected = _model_setting["model"]
+        meta = MODEL_REGISTRY.get(selected, MODEL_REGISTRY["claude-opus-4-6"])
         thread = threading.Thread(
             target=run_pipeline,
-            args=(customer_id, q),
+            args=(customer_id, q, selected, meta["provider"]),
             daemon=True,
         )
         thread.start()
