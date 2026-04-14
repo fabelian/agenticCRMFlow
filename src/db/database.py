@@ -47,6 +47,13 @@ class QCReport(Base):
     data = Column(JSON, nullable=False)
 
 
+class SalesNote(Base):
+    __tablename__ = "sales_notes"
+    note_id    = Column(String, primary_key=True)
+    customer_id = Column(String, nullable=False, index=True)
+    data        = Column(JSON, nullable=False)
+
+
 def init_db() -> None:
     """테이블 생성 (존재하면 스킵)"""
     Base.metadata.create_all(engine)

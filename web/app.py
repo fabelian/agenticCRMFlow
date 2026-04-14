@@ -35,6 +35,7 @@ from agents.orchestrator import OrchestratorAgent
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    dt.seed_sales_notes_if_empty()
     yield
 
 # data_tools._load를 공개 래퍼로 노출
@@ -204,6 +205,19 @@ class ModelSelect(BaseModel):
     model: str
 
 
+class SalesNoteCreate(BaseModel):
+    customer_id: str
+    date: str
+    author: str
+    channel: str
+    title: str
+    content: str
+    sentiment: str
+    key_concerns: list[str] = []
+    expressed_interests: list[str] = []
+    follow_up_required: bool = False
+
+
 @app.get("/api/models")
 async def api_models():
     """사용 가능한 모델 목록과 현재 선택 반환"""
@@ -224,6 +238,20 @@ async def api_set_model(body: ModelSelect):
     _model_setting["model"] = body.model
     meta = MODEL_REGISTRY[body.model]
     return {"selected": body.model, "label": meta["label"], "provider": meta["provider"]}
+
+
+@app.get("/api/sales-notes/{customer_id}")
+async def api_get_sales_notes(customer_id: str):
+    return dt.get_sales_notes(customer_id)
+
+
+@app.post("/api/sales-notes")
+async def api_add_sales_note(body: SalesNoteCreate):
+    customer = dt.get_customer(body.customer_id)
+    if not customer:
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="고객을 찾을 수 없습니다.")
+    return dt.add_sales_note(body.customer_id, body.model_dump())
 
 
 @app.get("/api/customers")

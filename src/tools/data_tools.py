@@ -40,9 +40,54 @@ def get_all_customers() -> list:
 
 
 def get_sales_notes(customer_id: str) -> list:
-    notes = _load("sales_notes.json")
-    result = [n for n in notes if n["customer_id"] == customer_id]
-    return sorted(result, key=lambda x: x["date"], reverse=True)
+    """영업 노트 조회 (DB 우선, 실패 시 JSON fallback)"""
+    try:
+        from db.database import SalesNote
+        with _session() as session:
+            rows = session.query(SalesNote).filter_by(customer_id=customer_id).all()
+            notes = [row.data for row in rows]
+            return sorted(notes, key=lambda x: x.get("date", ""), reverse=True)
+    except Exception:
+        notes = _load("sales_notes.json")
+        result = [n for n in notes if n["customer_id"] == customer_id]
+        return sorted(result, key=lambda x: x["date"], reverse=True)
+
+
+def add_sales_note(customer_id: str, note_data: dict) -> dict:
+    """새 영업 노트 DB 저장 (note_id 자동 생성)"""
+    from db.database import SalesNote
+    with _session() as session:
+        rows = session.query(SalesNote).filter_by(customer_id=customer_id).all()
+        nums = []
+        for row in rows:
+            try:
+                nums.append(int(row.note_id.split("-")[-1]))
+            except (ValueError, IndexError):
+                pass
+        next_n = (max(nums) + 1) if nums else 1
+        note_id = f"SN-{customer_id}-{next_n:03d}"
+        note_data["note_id"] = note_id
+        note_data["customer_id"] = customer_id
+        session.add(SalesNote(note_id=note_id, customer_id=customer_id, data=note_data))
+        session.commit()
+    return note_data
+
+
+def seed_sales_notes_if_empty() -> None:
+    """JSON → DB 초기 이전 (DB가 비어있을 때만 실행)"""
+    try:
+        from db.database import SalesNote
+        with _session() as session:
+            if session.query(SalesNote).count() == 0:
+                for note in _load("sales_notes.json"):
+                    session.add(SalesNote(
+                        note_id=note["note_id"],
+                        customer_id=note["customer_id"],
+                        data=note,
+                    ))
+                session.commit()
+    except Exception:
+        pass
 
 
 def get_action_plans(customer_id: str) -> list:

@@ -55,6 +55,18 @@
     .issue-major { background: #fff3cd; border-left: 4px solid #ffc107; }
     .issue-minor { background: #f0f4ff; border-left: 4px solid #6c757d; }
     .nav-tabs .nav-link.active { font-weight: 600; }
+
+    /* 영업 노트 */
+    .note-sentiment { font-size: .72rem; font-weight: 600; padding: .25em .65em; border-radius: 12px; white-space: nowrap; }
+    .sent-very-pos { background: #d1f7c4; color: #1a6b00; }
+    .sent-pos      { background: #d4edda; color: #155724; }
+    .sent-neutral  { background: #e2e3e5; color: #495057; }
+    .sent-neg      { background: #fff3cd; color: #856404; }
+    .sent-very-neg { background: #f8d7da; color: #721c24; }
+    .tag-chip { font-size: .7rem; background: #e9ecef; color: #495057; padding: .15em .55em; border-radius: 10px; display: inline-block; margin: .1em; }
+    .note-accordion-btn { background: #fffdf0 !important; }
+    .note-accordion-btn:not(.collapsed) { background: #fff8d6 !important; }
+    .note-accordion-body { background: #fffdf0; border-radius: 0 0 8px 8px; }
   </style>
 </head>
 <body>
@@ -134,6 +146,23 @@
     </div>
   </div>
 
+  <!-- 영업 노트 섹션 -->
+  <div class="card result-card mb-4">
+    <div class="card-body p-4">
+      <div class="d-flex align-items-center justify-content-between mb-3">
+        <h5 class="mb-0 fw-bold"><i class="bi bi-journal-text text-warning me-2"></i>영업 노트</h5>
+        <button class="btn btn-outline-warning btn-sm" data-bs-toggle="modal" data-bs-target="#addNoteModal">
+          <i class="bi bi-plus-lg me-1"></i>새 노트 추가
+        </button>
+      </div>
+      <div id="notesContainer">
+        <div class="text-center py-3 text-muted">
+          <div class="spinner-border spinner-border-sm me-2"></div>노트 불러오는 중...
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- 결과 탭 섹션 -->
   <div id="resultsSection">
     <h5 class="fw-bold mb-3"><i class="bi bi-bar-chart-fill text-success me-2"></i>분석 결과</h5>
@@ -203,6 +232,83 @@
   </div><!-- /resultsSection -->
 
 </div><!-- /container -->
+
+<!-- 새 노트 추가 모달 -->
+<div class="modal fade" id="addNoteModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title fw-bold"><i class="bi bi-journal-plus me-2 text-warning"></i>새 영업 노트 추가</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <form id="addNoteForm" onsubmit="submitNote(event)">
+        <div class="modal-body">
+          <div class="row g-3">
+            <div class="col-md-4">
+              <label class="form-label small fw-semibold">날짜</label>
+              <input type="date" class="form-control form-control-sm" id="noteDate" required>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small fw-semibold">작성자</label>
+              <input type="text" class="form-control form-control-sm" id="noteAuthor" placeholder="이름" required>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small fw-semibold">채널</label>
+              <select class="form-select form-select-sm" id="noteChannel">
+                <option>대면미팅</option>
+                <option>전화</option>
+                <option>이메일</option>
+                <option>카카오톡</option>
+                <option>기타</option>
+              </select>
+            </div>
+            <div class="col-12">
+              <label class="form-label small fw-semibold">제목</label>
+              <input type="text" class="form-control form-control-sm" id="noteTitle" placeholder="미팅 또는 통화 제목" required>
+            </div>
+            <div class="col-12">
+              <label class="form-label small fw-semibold">내용</label>
+              <textarea class="form-control form-control-sm" id="noteContent" rows="5"
+                placeholder="미팅/통화 내용을 상세히 기록하세요" required></textarea>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small fw-semibold">감정 평가</label>
+              <select class="form-select form-select-sm" id="noteSentiment">
+                <option>매우 긍정</option>
+                <option>긍정</option>
+                <option selected>중립</option>
+                <option>부정</option>
+                <option>매우 부정</option>
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small fw-semibold">주요 우려사항 <small class="text-muted">(쉼표 구분)</small></label>
+              <input type="text" class="form-control form-control-sm" id="noteKeyConcerns"
+                placeholder="우려사항1, 우려사항2">
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small fw-semibold">관심 표현사항 <small class="text-muted">(쉼표 구분)</small></label>
+              <input type="text" class="form-control form-control-sm" id="noteInterests"
+                placeholder="관심사1, 관심사2">
+            </div>
+            <div class="col-12">
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="noteFollowUp">
+                <label class="form-check-label small" for="noteFollowUp">후속 조치 필요</label>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-secondary btn-sm" data-bs-dismiss="modal">취소</button>
+          <button type="submit" class="btn btn-warning btn-sm" id="noteSubmitBtn">
+            <i class="bi bi-save me-1"></i>저장
+          </button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
@@ -488,8 +594,111 @@ function renderQC(qc) {
   `;
 }
 
+// ── 영업 노트 ─────────────────────────────────────────────────
+function sentimentClass(s) {
+  s = s || '';
+  if (s.includes('매우 긍정')) return 'sent-very-pos';
+  if (s.includes('긍정'))     return 'sent-pos';
+  if (s.includes('매우 부정')) return 'sent-very-neg';
+  if (s.includes('부정'))     return 'sent-neg';
+  return 'sent-neutral';
+}
+
+function renderSalesNotes(notes) {
+  const container = document.getElementById('notesContainer');
+  if (!notes || notes.length === 0) {
+    container.innerHTML = '<div class="text-muted small py-2"><i class="bi bi-journal-x me-1"></i>등록된 영업 노트가 없습니다.</div>';
+    return;
+  }
+  const items = notes.map((note, i) => {
+    const concerns   = (note.key_concerns || []).map(c => `<span class="tag-chip">${escHtml(c)}</span>`).join('');
+    const interests  = (note.expressed_interests || []).map(c => `<span class="tag-chip" style="color:#0d6efd">${escHtml(c)}</span>`).join('');
+    const followUpBadge = note.follow_up_required
+      ? '<span class="badge bg-warning text-dark ms-1" style="font-size:.7rem"><i class="bi bi-bell-fill me-1"></i>후속 조치</span>'
+      : '';
+    return `
+      <div class="accordion-item border-0 mb-2 rounded shadow-sm overflow-hidden">
+        <h2 class="accordion-header m-0">
+          <button class="accordion-button note-accordion-btn ${i > 0 ? 'collapsed' : ''} py-2 px-3"
+            type="button" data-bs-toggle="collapse" data-bs-target="#note${i}">
+            <div class="w-100 d-flex align-items-center gap-2 flex-wrap pe-2">
+              <span class="text-muted small">${escHtml(note.date)}</span>
+              <span class="badge bg-light text-dark border">${escHtml(note.channel || '')}</span>
+              <strong class="small flex-grow-1">${escHtml(note.title)}</strong>
+              <span class="note-sentiment ${sentimentClass(note.sentiment)}">${escHtml(note.sentiment || '')}</span>
+              ${followUpBadge}
+              <span class="text-muted small">${escHtml(note.author || '')}</span>
+            </div>
+          </button>
+        </h2>
+        <div id="note${i}" class="accordion-collapse collapse ${i === 0 ? 'show' : ''}">
+          <div class="note-accordion-body p-3">
+            <p class="small mb-3" style="white-space:pre-wrap;">${escHtml(note.content)}</p>
+            ${concerns  ? `<div class="mb-2"><span class="text-muted small me-1">우려사항:</span>${concerns}</div>`  : ''}
+            ${interests ? `<div><span class="text-muted small me-1">관심사항:</span>${interests}</div>`              : ''}
+          </div>
+        </div>
+      </div>`;
+  }).join('');
+  container.innerHTML = `<div class="accordion accordion-flush">${items}</div>`;
+}
+
+async function loadSalesNotes() {
+  try {
+    const res = await fetch('/api/sales-notes/' + CUSTOMER_ID);
+    renderSalesNotes(await res.json());
+  } catch(e) {
+    document.getElementById('notesContainer').innerHTML =
+      '<div class="text-danger small"><i class="bi bi-exclamation-circle me-1"></i>노트 불러오기 실패</div>';
+  }
+}
+
+async function submitNote(e) {
+  e.preventDefault();
+  const btn = document.getElementById('noteSubmitBtn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>저장 중...';
+
+  const splitTags = v => v.split(',').map(s => s.trim()).filter(Boolean);
+
+  const body = {
+    customer_id:        CUSTOMER_ID,
+    date:               document.getElementById('noteDate').value,
+    author:             document.getElementById('noteAuthor').value,
+    channel:            document.getElementById('noteChannel').value,
+    title:              document.getElementById('noteTitle').value,
+    content:            document.getElementById('noteContent').value,
+    sentiment:          document.getElementById('noteSentiment').value,
+    key_concerns:       splitTags(document.getElementById('noteKeyConcerns').value),
+    expressed_interests:splitTags(document.getElementById('noteInterests').value),
+    follow_up_required: document.getElementById('noteFollowUp').checked,
+  };
+
+  try {
+    const res = await fetch('/api/sales-notes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    });
+    if (!res.ok) throw new Error((await res.json()).detail || '서버 오류');
+    bootstrap.Modal.getInstance(document.getElementById('addNoteModal')).hide();
+    document.getElementById('addNoteForm').reset();
+    await loadSalesNotes();
+  } catch(err) {
+    alert('저장 실패: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-save me-1"></i>저장';
+  }
+}
+
 // ── 페이지 로드 시 기존 결과 표시 ───────────────────────────
 window.addEventListener('DOMContentLoaded', function() {
+  // 오늘 날짜를 기본값으로
+  document.getElementById('noteDate').value = new Date().toISOString().split('T')[0];
+
+  loadSalesNotes();
+
   fetch('/api/customer/' + CUSTOMER_ID)
     .then(r => r.ok ? r.json() : null)
     .then(data => {
