@@ -45,15 +45,32 @@ async def lifespan(app: FastAPI):
         stream=sys.stdout,
         force=True,  # uvicorn이 이미 설정해도 덮어씀
     )
-    _logging.info("[lifespan] 애플리케이션 시작 — DB 초기화 및 시드 실행 중...")
-    init_db()
-    _logging.info("[lifespan] init_db() 완료")
-    dt.seed_customers_if_empty()
-    _logging.info("[lifespan] seed_customers_if_empty() 완료")
-    dt.seed_sales_notes_if_empty()
-    _logging.info("[lifespan] seed_sales_notes_if_empty() 완료")
-    dt.seed_personas_if_empty()
-    _logging.info("[lifespan] seed_personas_if_empty() 완료 — 서버 준비됨")
+    print("[lifespan] START — DB 초기화 및 시드 실행 중...", flush=True)
+    try:
+        init_db()
+        print("[lifespan] init_db() OK", flush=True)
+    except Exception as e:
+        print(f"[lifespan] init_db() FAILED: {e}", flush=True)
+        import traceback; traceback.print_exc()
+    try:
+        dt.seed_customers_if_empty()
+        print("[lifespan] seed_customers OK", flush=True)
+    except Exception as e:
+        print(f"[lifespan] seed_customers FAILED: {e}", flush=True)
+        import traceback; traceback.print_exc()
+    try:
+        dt.seed_sales_notes_if_empty()
+        print("[lifespan] seed_sales_notes OK", flush=True)
+    except Exception as e:
+        print(f"[lifespan] seed_sales_notes FAILED: {e}", flush=True)
+        import traceback; traceback.print_exc()
+    try:
+        dt.seed_personas_if_empty()
+        print("[lifespan] seed_personas OK", flush=True)
+    except Exception as e:
+        print(f"[lifespan] seed_personas FAILED: {e}", flush=True)
+        import traceback; traceback.print_exc()
+    print("[lifespan] DONE — 서버 준비됨", flush=True)
     yield
 
 # data_tools._load를 공개 래퍼로 노출

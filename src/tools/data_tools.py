@@ -41,6 +41,7 @@ def seed_customers_if_empty() -> None:
     from sqlalchemy import inspect as sa_inspect
 
     db_url = os.environ.get("DATABASE_URL", "")
+    print(f"[seed_customers] START — DATABASE_URL prefix: {db_url[:30] if db_url else '(not set)'}", flush=True)
     logger.info("seed_customers_if_empty: starting. DATABASE_URL prefix: %s",
                 db_url[:30] if db_url else "(not set)")
 
@@ -54,20 +55,24 @@ def seed_customers_if_empty() -> None:
     try:
         with engine.connect() as conn:
             conn.execute(text("SELECT 1"))
+        print("[seed_customers] DB connection OK", flush=True)
         logger.info("seed_customers_if_empty: DB connection OK")
-    except Exception:
+    except Exception as e:
+        print(f"[seed_customers] DB connection FAILED: {e}", flush=True)
         logger.error("seed_customers_if_empty: DB connection FAILED", exc_info=True)
         return
 
     # 2. customers 테이블 존재 확인
     try:
         tables = sa_inspect(engine).get_table_names()
+        print(f"[seed_customers] existing tables: {tables}", flush=True)
         logger.info("seed_customers_if_empty: existing tables: %s", tables)
         if "customers" not in tables:
-            logger.warning("seed_customers_if_empty: 'customers' table missing — running init_db()")
+            print("[seed_customers] 'customers' table missing — running init_db()", flush=True)
             from db.database import init_db
             init_db()
-    except Exception:
+    except Exception as e:
+        print(f"[seed_customers] table inspection FAILED: {e}", flush=True)
         logger.error("seed_customers_if_empty: table inspection failed", exc_info=True)
         return
 
@@ -75,6 +80,7 @@ def seed_customers_if_empty() -> None:
     try:
         with _session() as session:
             customers = _load("customers.json")
+            print(f"[seed_customers] loaded {len(customers)} customers from JSON", flush=True)
             logger.info("seed_customers_if_empty: loaded %d customers from JSON", len(customers))
             added, updated = 0, 0
             for customer in customers:
@@ -90,8 +96,10 @@ def seed_customers_if_empty() -> None:
                     session.add(Customer(customer_id=cid, data=customer))
                     added += 1
             session.commit()
+            print(f"[seed_customers] DONE — added={added} updated={updated}", flush=True)
             logger.info("seed_customers_if_empty: done — added=%d updated=%d", added, updated)
-    except Exception:
+    except Exception as e:
+        print(f"[seed_customers] upsert FAILED: {e}", flush=True)
         logger.error("seed_customers_if_empty: upsert failed", exc_info=True)
 
 
