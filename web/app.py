@@ -39,11 +39,21 @@ from agents.qc_agent import QCAgent
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     import logging as _logging
-    _logging.basicConfig(level=_logging.INFO)
+    _logging.basicConfig(
+        level=_logging.INFO,
+        format="%(asctime)s [%(levelname)s] %(name)s — %(message)s",
+        stream=sys.stdout,
+        force=True,  # uvicorn이 이미 설정해도 덮어씀
+    )
+    _logging.info("[lifespan] 애플리케이션 시작 — DB 초기화 및 시드 실행 중...")
     init_db()
+    _logging.info("[lifespan] init_db() 완료")
     dt.seed_customers_if_empty()
+    _logging.info("[lifespan] seed_customers_if_empty() 완료")
     dt.seed_sales_notes_if_empty()
+    _logging.info("[lifespan] seed_sales_notes_if_empty() 완료")
     dt.seed_personas_if_empty()
+    _logging.info("[lifespan] seed_personas_if_empty() 완료 — 서버 준비됨")
     yield
 
 # data_tools._load를 공개 래퍼로 노출
