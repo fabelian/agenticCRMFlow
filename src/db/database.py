@@ -23,6 +23,12 @@ SessionLocal = sessionmaker(bind=engine)
 Base = declarative_base()
 
 
+class Customer(Base):
+    __tablename__ = "customers"
+    customer_id = Column(String, primary_key=True)
+    data = Column(JSON, nullable=False)
+
+
 class Persona(Base):
     __tablename__ = "personas"
     customer_id = Column(String, primary_key=True)

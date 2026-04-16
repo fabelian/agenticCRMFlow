@@ -30,12 +30,51 @@ def _session():
 
 # ─── 원본 데이터 조회 (JSON 파일, 읽기 전용) ──────────────────────────────────
 
+def seed_customers_if_empty() -> None:
+    """data/customers.json → DB 동기화 (시작 시 항상 upsert).
+    JSON이 source of truth이므로 DB에 없는 항목은 추가, 있는 항목은 최신화."""
+    try:
+        from db.database import Customer, flag_modified
+        with _session() as session:
+            for customer in _load("customers.json"):
+                cid = customer.get("customer_id")
+                if not cid:
+                    continue
+                existing = session.query(Customer).filter_by(customer_id=cid).first()
+                if existing:
+                    existing.data = customer
+                    flag_modified(existing, "data")
+                else:
+                    session.add(Customer(customer_id=cid, data=customer))
+            session.commit()
+    except Exception:
+        pass
+
+
 def get_customer(customer_id: str) -> dict | None:
+    """고객 조회 (DB 우선, 실패 시 JSON fallback)"""
+    try:
+        from db.database import Customer
+        with _session() as session:
+            row = session.query(Customer).filter_by(customer_id=customer_id).first()
+            if row:
+                return row.data
+    except Exception:
+        pass
     customers = _load("customers.json")
     return next((c for c in customers if c["customer_id"] == customer_id), None)
 
 
 def get_all_customers() -> list:
+    """전체 고객 조회 (DB 우선, 실패 시 JSON fallback)"""
+    try:
+        from db.database import Customer
+        with _session() as session:
+            rows = session.query(Customer).all()
+            if rows:
+                return [row.data for row in rows]
+    except Exception:
+        pass
     return _load("customers.json")
 
 

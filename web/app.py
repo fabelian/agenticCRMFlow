@@ -39,6 +39,7 @@ from agents.qc_agent import QCAgent
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     init_db()
+    dt.seed_customers_if_empty()
     dt.seed_sales_notes_if_empty()
     dt.seed_personas_if_empty()
     yield
