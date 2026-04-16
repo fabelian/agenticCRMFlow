@@ -460,7 +460,7 @@ def get_recent_notes_with_weights(customer_id: str, analysis_date: str = None, m
 
 def get_customer_feedback_only(customer_id: str, since_date: str = None) -> dict:
     """세일즈 노트에서 Customer_Feedback 필드만 추출하여 반환.
-    새 스키마(Customer_Feedback 키)와 구 스키마(customer_id 기반) 모두 지원.
+    get_sales_notes()로 해당 고객 노트만 가져오므로 다른 고객 데이터가 섞이지 않음.
     since_date(YYYY-MM-DD)가 지정되면 그 이후 노트만 포함."""
     from datetime import datetime
     since_dt = None
@@ -479,15 +479,15 @@ def get_customer_feedback_only(customer_id: str, since_date: str = None) -> dict
         except (ValueError, TypeError):
             return True
 
-    # 구 스키마: customer_id 필드로 필터링 가능한 경우
-    old_notes = get_sales_notes(customer_id)
-    old_feedbacks = []
-    for note in old_notes:
+    # get_sales_notes()는 DB 우선 + JSON fallback으로 해당 고객 노트만 반환
+    notes = get_sales_notes(customer_id)
+    feedbacks = []
+    for note in notes:
         if not _after_since(note):
             continue
         feedback = note.get("Customer_Feedback") or note.get("customer_feedback")
         if feedback:
-            old_feedbacks.append({
+            feedbacks.append({
                 "Activity_Date": note.get("Activity_Date") or note.get("date", ""),
                 "Client_Name": note.get("Client_Name") or customer_id,
                 "Sector": note.get("Sector", ""),
@@ -495,25 +495,6 @@ def get_customer_feedback_only(customer_id: str, since_date: str = None) -> dict
                 "Customer_Feedback": feedback,
             })
 
-    # 새 스키마: customer_id 없이 전체 노트 로드 후 Customer_Feedback 추출
-    all_notes = _load("sales_notes.json")
-    new_feedbacks = []
-    for note in all_notes:
-        if "customer_id" in note:
-            continue  # 구 스키마 항목은 이미 위에서 처리
-        if not _after_since(note):
-            continue
-        feedback = note.get("Customer_Feedback")
-        if feedback:
-            new_feedbacks.append({
-                "Activity_Date": note.get("Activity_Date", ""),
-                "Client_Name": note.get("Client_Name", ""),
-                "Sector": note.get("Sector", ""),
-                "Activity_Type": note.get("Activity_Type", ""),
-                "Customer_Feedback": feedback,
-            })
-
-    feedbacks = old_feedbacks + new_feedbacks
     return {
         "customer_id": customer_id,
         "since_date": since_date,
