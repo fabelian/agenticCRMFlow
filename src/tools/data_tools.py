@@ -5,8 +5,11 @@ CRM 데이터 액세스 레이어
 """
 
 import json
+import logging
 from pathlib import Path
 from datetime import datetime
+
+logger = logging.getLogger(__name__)
 
 ROOT = Path(__file__).parent.parent.parent
 DATA_DIR = ROOT / "data"
@@ -33,10 +36,14 @@ def _session():
 def seed_customers_if_empty() -> None:
     """data/customers.json → DB 동기화 (시작 시 항상 upsert).
     JSON이 source of truth이므로 DB에 없는 항목은 추가, 있는 항목은 최신화."""
+    logger.info("seed_customers_if_empty: starting customer upsert sync")
     try:
         from db.database import Customer, flag_modified
         with _session() as session:
-            for customer in _load("customers.json"):
+            customers = _load("customers.json")
+            logger.info("seed_customers_if_empty: loaded %d customers from JSON", len(customers))
+            added, updated = 0, 0
+            for customer in customers:
                 cid = customer.get("customer_id")
                 if not cid:
                     continue
@@ -44,11 +51,14 @@ def seed_customers_if_empty() -> None:
                 if existing:
                     existing.data = customer
                     flag_modified(existing, "data")
+                    updated += 1
                 else:
                     session.add(Customer(customer_id=cid, data=customer))
+                    added += 1
             session.commit()
-    except Exception:
-        pass
+            logger.info("seed_customers_if_empty: done — added=%d updated=%d", added, updated)
+    except Exception as exc:
+        logger.error("seed_customers_if_empty: failed (%s)", exc, exc_info=True)
 
 
 def get_customer(customer_id: str) -> dict | None:
@@ -59,23 +69,29 @@ def get_customer(customer_id: str) -> dict | None:
             row = session.query(Customer).filter_by(customer_id=customer_id).first()
             if row:
                 return row.data
-    except Exception:
-        pass
+    except Exception as exc:
+        logger.error("get_customer: DB query failed for %s (%s), falling back to JSON", customer_id, exc, exc_info=True)
     customers = _load("customers.json")
     return next((c for c in customers if c["customer_id"] == customer_id), None)
 
 
 def get_all_customers() -> list:
     """전체 고객 조회 (DB 우선, 실패 시 JSON fallback)"""
+    logger.info("get_all_customers: querying customers table in DB")
     try:
         from db.database import Customer
         with _session() as session:
             rows = session.query(Customer).all()
             if rows:
-                return [row.data for row in rows]
-    except Exception:
-        pass
-    return _load("customers.json")
+                customers = [row.data for row in rows]
+                logger.info("get_all_customers: returned %d customers from DB", len(customers))
+                return customers
+            logger.warning("get_all_customers: customers table is empty, falling back to JSON")
+    except Exception as exc:
+        logger.error("get_all_customers: DB query failed (%s), falling back to JSON", exc, exc_info=True)
+    customers = _load("customers.json")
+    logger.info("get_all_customers: returned %d customers from JSON fallback", len(customers))
+    return customers
 
 
 def get_sales_notes(customer_id: str) -> list:
