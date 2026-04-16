@@ -13,6 +13,8 @@ AI 기반 기관투자자 영업 지원 CRM. Claude 멀티에이전트 파이프
 - **영업 노트 관리** — 새 스키마(Sales_ID, Customer_Feedback, Action_Point 등) 기반 웹 CRUD
 - **멀티 모델 지원** — Claude Opus/Sonnet(Anthropic), Gemma/Llama/DeepSeek(OpenRouter 무료) 중 선택
 - **자동 DB 전환** — 로컬은 SQLite, Railway 배포 시 PostgreSQL 자동 전환
+- **대시보드 카드/리스트 뷰** — 카드 전체 클릭 시 상세 페이지 이동, 카드·리스트 뷰 전환 (localStorage 유지)
+- **노트 현황 표시** — 대시보드 카드에 고객별 영업 노트 건수 및 최근 날짜 표시
 
 ---
 
@@ -60,9 +62,10 @@ OrchestratorAgent (전체 실행)   개별 Agent 직접 호출
               │
   ┌───────────┴───────────┐
 DB (SQLite/PostgreSQL)  data/*.json
-personas, nba_results   customers.json
-activities, qc_reports  sales_notes.json (새 스키마)
-sales_notes             action_plans.json
+customers               customers.json (11개 고객)
+personas, nba_results   sales_notes.json (새 스키마, ~30건)
+activities, qc_reports  action_plans.json
+sales_notes
 ```
 
 ### 에이전트 역할
@@ -186,6 +189,8 @@ python src/main.py --all
 | `POST` | `/api/sales-notes` | 새 영업 노트 추가 |
 | `GET` | `/api/models` | 사용 가능 모델 목록 |
 | `POST` | `/api/model` | 분석 모델 변경 |
+| `GET` | `/api/debug` | DB 상태 진단 — 테이블 목록, 행 수, customers.json 확인 |
+| `GET` | `/api/debug/env` | 환경 변수 진단 — DATABASE_URL(마스킹), Railway 환경변수 |
 
 ### SSE 이벤트 형식
 
@@ -250,10 +255,23 @@ agenticCRM/
 ## 배포 (Railway)
 
 1. Railway 프로젝트에 이 저장소 연결
-2. 환경변수 설정: `ANTHROPIC_API_KEY`, `DATABASE_URL` (PostgreSQL)
+2. 환경변수 설정:
+
+| 변수 | 필수 | 설명 |
+|---|---|---|
+| `ANTHROPIC_API_KEY` | 필수 | Anthropic API 키 |
+| `DATABASE_URL` | 필수 | Railway PostgreSQL 자동 제공 |
+| `OPENROUTER_API_KEY` | 선택 | OpenRouter 무료 모델 사용 시 |
+
 3. Start Command: `uvicorn web.app:app --host 0.0.0.0 --port $PORT`
 
-`DATABASE_URL`이 `postgres://`로 시작하면 `postgresql://`로 자동 변환됩니다.
+**DB 시딩 방식**: 앱 시작 시 `customers.json`, `sales_notes.json`, `personas.json`을 PostgreSQL에 자동 삽입합니다. customers 테이블은 `psycopg2`로 직접 upsert하여 Railway 환경에서의 안정성을 높였습니다.
+
+**배포 후 진단**: 아래 엔드포인트로 DB 상태를 확인할 수 있습니다.
+```
+GET /api/debug      ← 테이블 행 수, customers.json 존재 여부
+GET /api/debug/env  ← DATABASE_URL 마스킹, Railway 환경변수
+```
 
 ---
 
