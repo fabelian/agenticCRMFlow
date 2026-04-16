@@ -211,6 +211,60 @@ async def test():
     return {"status": "ok", "message": "App is running"}
 
 
+@app.get("/api/debug")
+async def api_debug():
+    """DB 상태 및 시드 현황 진단 엔드포인트"""
+    import os
+    from sqlalchemy import text, inspect as sa_inspect
+
+    db_url = os.environ.get("DATABASE_URL", "")
+    info = {
+        "DATABASE_URL_set": bool(db_url),
+        "DATABASE_URL_prefix": db_url[:40] if db_url else "(not set)",
+        "tables": [],
+        "row_counts": {},
+        "customers_sample": [],
+        "data_dir_exists": False,
+        "customers_json_exists": False,
+        "customers_json_count": 0,
+    }
+
+    # JSON 파일 확인
+    from pathlib import Path
+    data_dir = Path(__file__).parent.parent / "data"
+    info["data_dir_exists"] = data_dir.exists()
+    customers_json = data_dir / "customers.json"
+    info["customers_json_exists"] = customers_json.exists()
+    if customers_json.exists():
+        import json as _json
+        with open(customers_json, encoding="utf-8") as f:
+            cdata = _json.load(f)
+        info["customers_json_count"] = len(cdata)
+
+    # DB 확인
+    try:
+        from db.database import engine
+        inspector = sa_inspect(engine)
+        info["tables"] = inspector.get_table_names()
+
+        with engine.connect() as conn:
+            for table in ["customers", "sales_notes", "personas", "nba_results", "activities", "qc_reports"]:
+                if table in info["tables"]:
+                    row = conn.execute(text(f"SELECT COUNT(*) FROM {table}")).fetchone()
+                    info["row_counts"][table] = row[0] if row else 0
+
+        # customers 샘플 조회
+        from db.database import Customer
+        with dt._session() as session:
+            rows = session.query(Customer).limit(3).all()
+            info["customers_sample"] = [r.data.get("company_name") for r in rows if r.data]
+
+    except Exception as e:
+        info["db_error"] = str(e)
+
+    return info
+
+
 @app.get("/", response_class=HTMLResponse)
 async def dashboard(request: Request):
     try:
