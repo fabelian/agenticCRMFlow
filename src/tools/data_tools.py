@@ -179,18 +179,23 @@ def add_sales_note(customer_id: str, note_data: dict) -> dict:
 def seed_sales_notes_if_empty() -> None:
     """JSON → DB 초기 이전 (DB가 비어있을 때만 실행).
     구 스키마(customer_id/note_id 보유)와 새 스키마(Client_Name 기반) 모두 지원."""
+    logger.info("seed_sales_notes_if_empty: starting")
     try:
         from db.database import SalesNote
         with _session() as session:
-            if session.query(SalesNote).count() > 0:
+            existing = session.query(SalesNote).count()
+            if existing > 0:
+                logger.info("seed_sales_notes_if_empty: %d notes already in DB, skipping", existing)
                 return
 
             # company_name → customer_id 역 매핑
             customers = _load("customers.json")
             name_to_id = {c["company_name"]: c["customer_id"] for c in customers}
+            logger.info("seed_sales_notes_if_empty: name_to_id map has %d entries", len(name_to_id))
 
             # 고객별 노트 카운터 (note_id 생성용)
             cust_counter: dict[str, int] = {}
+            added, skipped = 0, 0
 
             for note in _load("sales_notes.json"):
                 if "customer_id" in note and "note_id" in note:
@@ -200,10 +205,13 @@ def seed_sales_notes_if_empty() -> None:
                         customer_id=note["customer_id"],
                         data=note,
                     ))
+                    added += 1
                 elif "Client_Name" in note:
                     # 새 스키마: Client_Name으로 customer_id 조회
                     customer_id = name_to_id.get(note["Client_Name"])
                     if not customer_id:
+                        logger.warning("seed_sales_notes_if_empty: no customer_id for Client_Name=%s", note.get("Client_Name"))
+                        skipped += 1
                         continue
                     cust_counter[customer_id] = cust_counter.get(customer_id, 0) + 1
                     note_id = f"SN-{customer_id}-{cust_counter[customer_id]:03d}"
@@ -213,23 +221,37 @@ def seed_sales_notes_if_empty() -> None:
                         customer_id=customer_id,
                         data=note_with_ids,
                     ))
+                    added += 1
+                else:
+                    skipped += 1
             session.commit()
+            logger.info("seed_sales_notes_if_empty: done — added=%d skipped=%d", added, skipped)
     except Exception:
-        pass
+        logger.error("seed_sales_notes_if_empty: failed", exc_info=True)
 
 
 def seed_personas_if_empty() -> None:
     """data/personas.json → DB 이전 (customer_id 기준으로 없는 것만 삽입)"""
+    logger.info("seed_personas_if_empty: starting")
+    personas_data = _load("personas.json")
+    if not personas_data:
+        logger.info("seed_personas_if_empty: personas.json is empty or missing, skipping")
+        return
     try:
         from db.database import Persona
         with _session() as session:
-            for persona in _load("personas.json"):
+            added = 0
+            for persona in personas_data:
                 cid = persona.get("customer_id")
-                if cid and not session.query(Persona).filter_by(customer_id=cid).first():
+                if not cid:
+                    continue
+                if not session.query(Persona).filter_by(customer_id=cid).first():
                     session.add(Persona(customer_id=cid, data=persona))
+                    added += 1
             session.commit()
+            logger.info("seed_personas_if_empty: done — added=%d", added)
     except Exception:
-        pass
+        logger.error("seed_personas_if_empty: failed", exc_info=True)
 
 
 def get_action_plans(customer_id: str) -> list:
