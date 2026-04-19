@@ -10,6 +10,12 @@
     body { background: #f0f2f5; }
     .navbar-brand { font-weight: 700; letter-spacing: -0.5px; }
 
+    /* 탭 네비게이션 */
+    .main-tabs { background: #fff; border-bottom: 2px solid #dee2e6; }
+    .main-tabs .nav-link { color: #6c757d; font-weight: 500; padding: .75rem 1.5rem; border: none; border-bottom: 2px solid transparent; margin-bottom: -2px; border-radius: 0; }
+    .main-tabs .nav-link:hover { color: #0d6efd; }
+    .main-tabs .nav-link.active { color: #0d6efd; border-bottom-color: #0d6efd; background: none; }
+
     /* 히어로 */
     .hero { background: linear-gradient(135deg, #0d6efd 0%, #0a58ca 100%); color: #fff; padding: 2.5rem 0 2rem; margin-bottom: 2rem; }
     .hero h1 { font-weight: 800; }
@@ -38,15 +44,24 @@
     .analyzed-badge { font-size: .72rem; }
 
     /* 리스트 뷰 */
-    .list-row {
-      cursor: pointer; transition: background .1s;
-      text-decoration: none; color: inherit;
-    }
+    .list-row { cursor: pointer; transition: background .1s; text-decoration: none; color: inherit; }
     .list-row:hover { background: #e8f0fe !important; color: inherit; }
     .list-row td { vertical-align: middle; }
 
     /* 뷰 전환 버튼 */
     .view-btn.active { background: #0d6efd; color: #fff; border-color: #0d6efd; }
+
+    /* 필터 바 */
+    .filter-bar { background: #fff; border-radius: 10px; padding: 1rem 1.25rem; margin-bottom: 1.25rem; box-shadow: 0 1px 4px rgba(0,0,0,.07); }
+
+    /* 테이블 공통 */
+    .data-table th { font-size: .82rem; white-space: nowrap; }
+    .data-table td { font-size: .85rem; vertical-align: middle; }
+    .text-truncate-cell { max-width: 220px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+    /* 페르소나 모달 */
+    .persona-section { background: #f8f9fa; border-radius: 8px; padding: 1rem; margin-bottom: .75rem; }
+    .persona-section h6 { font-size: .85rem; font-weight: 700; color: #0d6efd; margin-bottom: .5rem; }
   </style>
 </head>
 <body>
@@ -63,253 +78,672 @@
   </div>
 </nav>
 
-<!-- 히어로 -->
-<div class="hero">
+<!-- 메인 탭 -->
+<div class="main-tabs">
   <div class="container">
-    <h1 class="mb-1"><i class="bi bi-people-fill me-2"></i>고객 대시보드</h1>
-    <p class="mb-3 opacity-75">AI 기반 CRM 분석으로 최적의 영업 전략을 수립하세요</p>
-    <div class="row g-3">
-      <div class="col-auto">
-        <div class="stat-card">
-          <div class="small opacity-75">전체 고객</div>
-          <div class="fs-4 fw-bold">{{ customers | length }}명</div>
+    <ul class="nav" id="mainTabs">
+      <li class="nav-item">
+        <button class="nav-link active" data-tab="customers"><i class="bi bi-people me-1"></i>고객 대시보드</button>
+      </li>
+      <li class="nav-item">
+        <button class="nav-link" data-tab="notes"><i class="bi bi-journal-text me-1"></i>세일즈 노트</button>
+      </li>
+      <li class="nav-item">
+        <button class="nav-link" data-tab="personas"><i class="bi bi-person-badge me-1"></i>페르소나</button>
+      </li>
+    </ul>
+  </div>
+</div>
+
+<!-- ═══════════════════ TAB 1: 고객 대시보드 ═══════════════════ -->
+<div id="tab-customers" class="tab-pane">
+
+  <!-- 히어로 -->
+  <div class="hero">
+    <div class="container">
+      <h1 class="mb-1"><i class="bi bi-people-fill me-2"></i>고객 대시보드</h1>
+      <p class="mb-3 opacity-75">AI 기반 CRM 분석으로 최적의 영업 전략을 수립하세요</p>
+      <div class="row g-3">
+        <div class="col-auto">
+          <div class="stat-card">
+            <div class="small opacity-75">전체 고객</div>
+            <div class="fs-4 fw-bold">{{ customers | length }}명</div>
+          </div>
+        </div>
+        <div class="col-auto">
+          <div class="stat-card">
+            <div class="small opacity-75">분석 완료</div>
+            <div class="fs-4 fw-bold">{{ analyzed_ids | length }}명</div>
+          </div>
+        </div>
+        <div class="col-auto">
+          <div class="stat-card">
+            <div class="small opacity-75">미분석</div>
+            <div class="fs-4 fw-bold">{{ (customers | length) - (analyzed_ids | length) }}명</div>
+          </div>
         </div>
       </div>
-      <div class="col-auto">
-        <div class="stat-card">
-          <div class="small opacity-75">분석 완료</div>
-          <div class="fs-4 fw-bold">{{ analyzed_ids | length }}명</div>
-        </div>
+    </div>
+  </div>
+
+  <!-- 고객 목록 -->
+  <div class="container pb-5">
+    <div class="d-flex justify-content-between align-items-center mb-3">
+      <p class="text-muted mb-0 small"><i class="bi bi-hand-index me-1"></i>고객 카드를 클릭하면 상세 분석 페이지로 이동합니다</p>
+      <div class="btn-group btn-group-sm">
+        <button class="btn btn-outline-secondary view-btn active" id="btnCard" onclick="setView('card')">
+          <i class="bi bi-grid-3x3-gap me-1"></i>카드
+        </button>
+        <button class="btn btn-outline-secondary view-btn" id="btnList" onclick="setView('list')">
+          <i class="bi bi-list-ul me-1"></i>리스트
+        </button>
       </div>
-      <div class="col-auto">
-        <div class="stat-card">
-          <div class="small opacity-75">미분석</div>
-          <div class="fs-4 fw-bold">{{ (customers | length) - (analyzed_ids | length) }}명</div>
-        </div>
+    </div>
+
+    <!-- 카드 뷰 -->
+    <div id="cardView" class="row g-4">
+      {% for customer in customers %}
+      {% set is_analyzed = customer.customer_id in analyzed_ids %}
+      {% set ninfo = notes_info.get(customer.customer_id, {}) %}
+      <div class="col-md-6 col-lg-4">
+        <a href="/customer/{{ customer.customer_id }}" class="customer-card card h-100">
+          <div class="card-body p-4">
+            <div class="d-flex justify-content-between align-items-start mb-3">
+              <div>
+                <h5 class="card-title mb-1 fw-bold">{{ customer.company_name }}</h5>
+                <span class="text-muted small">{{ customer.company_type }}</span>
+              </div>
+              <div class="d-flex align-items-center gap-2">
+                <span class="tier-badge tier-{{ customer.tier }}">{{ customer.tier }}등급</span>
+                <i class="bi bi-arrow-right-circle card-arrow fs-5"></i>
+              </div>
+            </div>
+            <div class="mb-3">
+              <div class="text-muted small mb-1">운용자산 (AUM)</div>
+              <div class="aum-text">
+                {% if customer.aum_billion_krw >= 10000 %}
+                  {{ "%.0f" | format(customer.aum_billion_krw / 10000) }}조원
+                {% else %}
+                  {{ customer.aum_billion_krw }}억원
+                {% endif %}
+              </div>
+            </div>
+            <div class="mb-3 p-2 bg-light rounded">
+              <div class="d-flex align-items-center">
+                <i class="bi bi-person-fill text-primary me-2"></i>
+                <div>
+                  <div class="fw-semibold small">{{ customer.contact.name }}</div>
+                  <div class="text-muted" style="font-size:.75rem">{{ customer.contact.title }}</div>
+                </div>
+                {% if customer.contact.email %}
+                <span class="ms-auto text-muted" style="font-size:.72rem"><i class="bi bi-envelope me-1"></i>{{ customer.contact.email }}</span>
+                {% endif %}
+              </div>
+            </div>
+            <div class="mb-3">
+              {% for mandate in customer.investment_mandate %}
+              <span class="badge bg-light text-dark border me-1 mb-1" style="font-size:.72rem">{{ mandate }}</span>
+              {% endfor %}
+            </div>
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+              {% if is_analyzed %}
+              <span class="badge bg-success analyzed-badge"><i class="bi bi-check-circle-fill me-1"></i>분석 완료</span>
+              {% else %}
+              <span class="badge bg-secondary analyzed-badge"><i class="bi bi-clock me-1"></i>미분석</span>
+              {% endif %}
+              {% if ninfo.get('count', 0) > 0 %}
+              <span class="text-muted" style="font-size:.75rem">
+                <i class="bi bi-journal-text me-1"></i>노트 {{ ninfo.count }}건
+                {% if ninfo.last_date %}· {{ ninfo.last_date }}{% endif %}
+              </span>
+              {% endif %}
+            </div>
+          </div>
+        </a>
+      </div>
+      {% endfor %}
+    </div>
+
+    <!-- 리스트 뷰 -->
+    <div id="listView" class="card border-0 shadow-sm" style="display:none">
+      <div class="table-responsive">
+        <table class="table table-hover mb-0">
+          <thead class="table-dark">
+            <tr>
+              <th style="width:40px">등급</th>
+              <th>회사명</th>
+              <th>유형</th>
+              <th>AUM</th>
+              <th>담당자</th>
+              <th>투자 만데이트</th>
+              <th>영업 노트</th>
+              <th>분석</th>
+              <th style="width:30px"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for customer in customers %}
+            {% set is_analyzed = customer.customer_id in analyzed_ids %}
+            {% set ninfo = notes_info.get(customer.customer_id, {}) %}
+            <tr class="list-row" onclick="location.href='/customer/{{ customer.customer_id }}'">
+              <td><span class="tier-badge tier-{{ customer.tier }}">{{ customer.tier }}</span></td>
+              <td class="fw-semibold">{{ customer.company_name }}</td>
+              <td class="text-muted small">{{ customer.company_type }}</td>
+              <td class="fw-bold text-primary">
+                {% if customer.aum_billion_krw >= 10000 %}
+                  {{ "%.0f" | format(customer.aum_billion_krw / 10000) }}조
+                {% else %}
+                  {{ customer.aum_billion_krw }}억
+                {% endif %}
+              </td>
+              <td>
+                <div class="small fw-semibold">{{ customer.contact.name }}</div>
+                <div class="text-muted" style="font-size:.72rem">{{ customer.contact.title }}</div>
+              </td>
+              <td>
+                {% for mandate in customer.investment_mandate[:3] %}
+                <span class="badge bg-light text-dark border me-1" style="font-size:.68rem">{{ mandate }}</span>
+                {% endfor %}
+                {% if customer.investment_mandate | length > 3 %}
+                <span class="text-muted small">+{{ customer.investment_mandate | length - 3 }}</span>
+                {% endif %}
+              </td>
+              <td class="small text-muted">
+                {% if ninfo.get('count', 0) > 0 %}
+                <i class="bi bi-journal-text me-1"></i>{{ ninfo.count }}건
+                {% if ninfo.last_date %}<br><span style="font-size:.68rem">{{ ninfo.last_date }}</span>{% endif %}
+                {% else %}—{% endif %}
+              </td>
+              <td>
+                {% if is_analyzed %}
+                <span class="badge bg-success" style="font-size:.7rem">완료</span>
+                {% else %}
+                <span class="badge bg-secondary" style="font-size:.7rem">미분석</span>
+                {% endif %}
+              </td>
+              <td class="text-muted"><i class="bi bi-chevron-right"></i></td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
       </div>
     </div>
   </div>
 </div>
 
-<!-- 고객 목록 -->
-<div class="container pb-5">
-
-  <!-- 뷰 전환 + 설명 -->
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <p class="text-muted mb-0 small"><i class="bi bi-hand-index me-1"></i>고객 카드를 클릭하면 상세 분석 페이지로 이동합니다</p>
-    <div class="btn-group btn-group-sm">
-      <button class="btn btn-outline-secondary view-btn active" id="btnCard" onclick="setView('card')">
-        <i class="bi bi-grid-3x3-gap me-1"></i>카드
-      </button>
-      <button class="btn btn-outline-secondary view-btn" id="btnList" onclick="setView('list')">
-        <i class="bi bi-list-ul me-1"></i>리스트
-      </button>
+<!-- ═══════════════════ TAB 2: 세일즈 노트 ═══════════════════ -->
+<div id="tab-notes" class="tab-pane" style="display:none">
+  <div class="container py-4 pb-5">
+    <div class="d-flex align-items-center mb-3">
+      <h4 class="fw-bold mb-0"><i class="bi bi-journal-text me-2 text-primary"></i>세일즈 노트 전체 조회</h4>
+      <span class="ms-3 badge bg-secondary" id="notesCount">로딩 중...</span>
     </div>
-  </div>
 
-  <!-- 카드 뷰 -->
-  <div id="cardView" class="row g-4">
-    {% for customer in customers %}
-    {% set is_analyzed = customer.customer_id in analyzed_ids %}
-    {% set ninfo = notes_info.get(customer.customer_id, {}) %}
-    <div class="col-md-6 col-lg-4">
-      <a href="/customer/{{ customer.customer_id }}" class="customer-card card h-100">
-        <div class="card-body p-4">
-          <!-- 헤더: 회사명 + 등급 + 화살표 -->
-          <div class="d-flex justify-content-between align-items-start mb-3">
-            <div>
-              <h5 class="card-title mb-1 fw-bold">{{ customer.company_name }}</h5>
-              <span class="text-muted small">{{ customer.company_type }}</span>
-            </div>
-            <div class="d-flex align-items-center gap-2">
-              <span class="tier-badge tier-{{ customer.tier }}">{{ customer.tier }}등급</span>
-              <i class="bi bi-arrow-right-circle card-arrow fs-5"></i>
-            </div>
-          </div>
-
-          <!-- AUM -->
-          <div class="mb-3">
-            <div class="text-muted small mb-1">운용자산 (AUM)</div>
-            <div class="aum-text">
-              {% if customer.aum_billion_krw >= 10000 %}
-                {{ "%.0f" | format(customer.aum_billion_krw / 10000) }}조원
-              {% else %}
-                {{ customer.aum_billion_krw }}억원
-              {% endif %}
-            </div>
-          </div>
-
-          <!-- 담당자 정보 -->
-          <div class="mb-3 p-2 bg-light rounded">
-            <div class="d-flex align-items-center">
-              <i class="bi bi-person-fill text-primary me-2"></i>
-              <div>
-                <div class="fw-semibold small">{{ customer.contact.name }}</div>
-                <div class="text-muted" style="font-size:.75rem">{{ customer.contact.title }}</div>
-              </div>
-              {% if customer.contact.email %}
-              <span class="ms-auto text-muted" style="font-size:.72rem"><i class="bi bi-envelope me-1"></i>{{ customer.contact.email }}</span>
-              {% endif %}
-            </div>
-          </div>
-
-          <!-- 투자 만데이트 -->
-          <div class="mb-3">
-            {% for mandate in customer.investment_mandate %}
-            <span class="badge bg-light text-dark border me-1 mb-1" style="font-size:.72rem">{{ mandate }}</span>
-            {% endfor %}
-          </div>
-
-          <!-- 영업 노트 현황 + 분석 상태 -->
-          <div class="d-flex align-items-center gap-2 flex-wrap">
-            {% if is_analyzed %}
-            <span class="badge bg-success analyzed-badge"><i class="bi bi-check-circle-fill me-1"></i>분석 완료</span>
-            {% else %}
-            <span class="badge bg-secondary analyzed-badge"><i class="bi bi-clock me-1"></i>미분석</span>
-            {% endif %}
-            {% if ninfo.get('count', 0) > 0 %}
-            <span class="text-muted" style="font-size:.75rem">
-              <i class="bi bi-journal-text me-1"></i>노트 {{ ninfo.count }}건
-              {% if ninfo.last_date %}· {{ ninfo.last_date }}{% endif %}
-            </span>
-            {% endif %}
-          </div>
+    <!-- 필터 바 -->
+    <div class="filter-bar">
+      <div class="row g-2 align-items-end">
+        <div class="col-md-3">
+          <label class="form-label small fw-semibold mb-1">고객사</label>
+          <select id="filterCustomer" class="form-select form-select-sm">
+            <option value="">전체 고객사</option>
+          </select>
         </div>
-      </a>
+        <div class="col-md-2">
+          <label class="form-label small fw-semibold mb-1">시작일</label>
+          <input type="date" id="filterDateFrom" class="form-control form-control-sm">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small fw-semibold mb-1">종료일</label>
+          <input type="date" id="filterDateTo" class="form-control form-control-sm">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small fw-semibold mb-1">활동 유형</label>
+          <select id="filterActivityType" class="form-select form-select-sm">
+            <option value="">전체</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small fw-semibold mb-1">섹터</label>
+          <select id="filterSector" class="form-select form-select-sm">
+            <option value="">전체</option>
+          </select>
+        </div>
+        <div class="col-md-1 d-flex gap-1">
+          <button class="btn btn-sm btn-primary w-100" onclick="applyNotesFilter()"><i class="bi bi-funnel"></i></button>
+          <button class="btn btn-sm btn-outline-secondary" onclick="resetNotesFilter()" title="초기화"><i class="bi bi-x-lg"></i></button>
+        </div>
+      </div>
+      <div class="row g-2 mt-1">
+        <div class="col-md-6">
+          <input type="text" id="filterSearch" class="form-control form-control-sm" placeholder="내용 검색 (활동 로그, Action Point, 피드백...)">
+        </div>
+        <div class="col-md-2">
+          <label class="form-label small fw-semibold mb-1">영업 담당자</label>
+          <select id="filterSalesName" class="form-select form-select-sm">
+            <option value="">전체</option>
+          </select>
+        </div>
+      </div>
     </div>
-    {% endfor %}
-  </div>
 
-  <!-- 리스트 뷰 -->
-  <div id="listView" class="card border-0 shadow-sm" style="display:none">
-    <div class="table-responsive">
-      <table class="table table-hover mb-0">
-        <thead class="table-dark">
-          <tr>
-            <th style="width:40px">등급</th>
-            <th>회사명</th>
-            <th>유형</th>
-            <th>AUM</th>
-            <th>담당자</th>
-            <th>투자 만데이트</th>
-            <th>영업 노트</th>
-            <th>분석</th>
-            <th style="width:30px"></th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for customer in customers %}
-          {% set is_analyzed = customer.customer_id in analyzed_ids %}
-          {% set ninfo = notes_info.get(customer.customer_id, {}) %}
-          <tr class="list-row" onclick="location.href='/customer/{{ customer.customer_id }}'">
-            <td><span class="tier-badge tier-{{ customer.tier }}">{{ customer.tier }}</span></td>
-            <td class="fw-semibold">{{ customer.company_name }}</td>
-            <td class="text-muted small">{{ customer.company_type }}</td>
-            <td class="fw-bold text-primary">
-              {% if customer.aum_billion_krw >= 10000 %}
-                {{ "%.0f" | format(customer.aum_billion_krw / 10000) }}조
-              {% else %}
-                {{ customer.aum_billion_krw }}억
-              {% endif %}
-            </td>
-            <td>
-              <div class="small fw-semibold">{{ customer.contact.name }}</div>
-              <div class="text-muted" style="font-size:.72rem">{{ customer.contact.title }}</div>
-            </td>
-            <td>
-              {% for mandate in customer.investment_mandate[:3] %}
-              <span class="badge bg-light text-dark border me-1" style="font-size:.68rem">{{ mandate }}</span>
-              {% endfor %}
-              {% if customer.investment_mandate | length > 3 %}
-              <span class="text-muted small">+{{ customer.investment_mandate | length - 3 }}</span>
-              {% endif %}
-            </td>
-            <td class="small text-muted">
-              {% if ninfo.get('count', 0) > 0 %}
-              <i class="bi bi-journal-text me-1"></i>{{ ninfo.count }}건
-              {% if ninfo.last_date %}<br><span style="font-size:.68rem">{{ ninfo.last_date }}</span>{% endif %}
-              {% else %}—{% endif %}
-            </td>
-            <td>
-              {% if is_analyzed %}
-              <span class="badge bg-success" style="font-size:.7rem">완료</span>
-              {% else %}
-              <span class="badge bg-secondary" style="font-size:.7rem">미분석</span>
-              {% endif %}
-            </td>
-            <td class="text-muted"><i class="bi bi-chevron-right"></i></td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+    <!-- 노트 테이블 -->
+    <div class="card border-0 shadow-sm">
+      <div class="table-responsive">
+        <table class="table table-hover mb-0 data-table">
+          <thead class="table-dark">
+            <tr>
+              <th onclick="sortNotes('Activity_Date')" style="cursor:pointer">날짜 <i class="bi bi-arrow-down-up"></i></th>
+              <th onclick="sortNotes('_customer_name')" style="cursor:pointer">고객사 <i class="bi bi-arrow-down-up"></i></th>
+              <th>영업 담당자</th>
+              <th>활동 유형</th>
+              <th>섹터</th>
+              <th>담당자</th>
+              <th>Action Point</th>
+              <th style="width:60px"></th>
+            </tr>
+          </thead>
+          <tbody id="notesTableBody">
+            <tr><td colspan="8" class="text-center py-4 text-muted">데이터 로딩 중...</td></tr>
+          </tbody>
+        </table>
+      </div>
     </div>
   </div>
+</div>
 
+<!-- ═══════════════════ TAB 3: 페르소나 ═══════════════════ -->
+<div id="tab-personas" class="tab-pane" style="display:none">
+  <div class="container py-4 pb-5">
+    <div class="d-flex align-items-center mb-3">
+      <h4 class="fw-bold mb-0"><i class="bi bi-person-badge me-2 text-primary"></i>페르소나 전체 조회</h4>
+      <span class="ms-3 badge bg-secondary" id="personasCount">로딩 중...</span>
+    </div>
+
+    <!-- 필터 바 -->
+    <div class="filter-bar">
+      <div class="row g-2 align-items-end">
+        <div class="col-md-4">
+          <input type="text" id="personaSearch" class="form-control form-control-sm" placeholder="고객사명 또는 내용 검색...">
+        </div>
+        <div class="col-md-2">
+          <select id="personaTierFilter" class="form-select form-select-sm">
+            <option value="">전체 등급</option>
+            <option value="S">S등급</option>
+            <option value="A">A등급</option>
+            <option value="B">B등급</option>
+          </select>
+        </div>
+        <div class="col-auto">
+          <button class="btn btn-sm btn-primary" onclick="applyPersonaFilter()"><i class="bi bi-funnel me-1"></i>검색</button>
+          <button class="btn btn-sm btn-outline-secondary ms-1" onclick="resetPersonaFilter()"><i class="bi bi-x-lg"></i></button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 페르소나 테이블 -->
+    <div class="card border-0 shadow-sm">
+      <div class="table-responsive">
+        <table class="table table-hover mb-0 data-table">
+          <thead class="table-dark">
+            <tr>
+              <th>등급</th>
+              <th onclick="sortPersonas('_company_name')" style="cursor:pointer">고객사 <i class="bi bi-arrow-down-up"></i></th>
+              <th>선호 섹터</th>
+              <th>선호 콘텐츠</th>
+              <th>분석 스타일</th>
+              <th onclick="sortPersonas('updated_at')" style="cursor:pointer">업데이트 <i class="bi bi-arrow-down-up"></i></th>
+              <th style="width:60px"></th>
+            </tr>
+          </thead>
+          <tbody id="personasTableBody">
+            <tr><td colspan="7" class="text-center py-4 text-muted">데이터 로딩 중...</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ 노트 상세 모달 ═══════════════════ -->
+<div class="modal fade" id="noteDetailModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-journal-text me-2"></i><span id="noteModalTitle">세일즈 노트 상세</span></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="noteModalBody"></div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ 페르소나 상세 모달 ═══════════════════ -->
+<div class="modal fade" id="personaDetailModal" tabindex="-1">
+  <div class="modal-dialog modal-xl">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-person-badge me-2"></i><span id="personaModalTitle">페르소나 상세</span></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="personaModalBody"></div>
+      <div class="modal-footer">
+        <a id="personaCustomerLink" href="#" class="btn btn-primary btn-sm"><i class="bi bi-arrow-right-circle me-1"></i>고객 상세 페이지</a>
+      </div>
+    </div>
+  </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
-  // ── 뷰 전환 ──────────────────────────────────────────────────────────────────
-  function setView(mode) {
-    const isCard = mode === 'card';
-    document.getElementById('cardView').style.display = isCard ? '' : 'none';
-    document.getElementById('listView').style.display = isCard ? 'none' : '';
-    document.getElementById('btnCard').classList.toggle('active', isCard);
-    document.getElementById('btnList').classList.toggle('active', !isCard);
-    localStorage.setItem('dashboardView', mode);
-  }
+// ─── 탭 전환 ─────────────────────────────────────────────────────────────────
+const tabLoaded = { customers: true, notes: false, personas: false };
 
-  // 마지막 뷰 복원
-  const savedView = localStorage.getItem('dashboardView') || 'card';
-  setView(savedView);
-
-  // ── 모델 선택 ─────────────────────────────────────────────────────────────────
-  const modelSelect = document.getElementById('modelSelect');
-  const modelBadge  = document.getElementById('modelBadge');
-
-  const PROVIDER_COLORS = { anthropic: 'bg-primary', openrouter: 'bg-success' };
-  const PROVIDER_LABELS = { anthropic: 'Anthropic', openrouter: 'OpenRouter' };
-
-  async function loadModels() {
-    try {
-      const res  = await fetch('/api/models');
-      const data = await res.json();
-      modelSelect.innerHTML = data.models.map(m =>
-        `<option value="${m.id}" ${m.id === data.current ? 'selected' : ''}>
-           ${m.label} — ${m.description}
-         </option>`
-      ).join('');
-      updateBadge(data.models.find(m => m.id === data.current));
-    } catch (e) {
-      modelSelect.innerHTML = '<option>불러오기 실패</option>';
-    }
-  }
-
-  function updateBadge(meta) {
-    if (!meta) return;
-    const color = PROVIDER_COLORS[meta.provider] || 'bg-secondary';
-    const label = PROVIDER_LABELS[meta.provider] || meta.provider;
-    modelBadge.className = `badge ${color} small`;
-    modelBadge.textContent = label;
-  }
-
-  modelSelect.addEventListener('change', async () => {
-    const modelId = modelSelect.value;
-    try {
-      const res  = await fetch('/api/model', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: modelId }),
-      });
-      const data = await res.json();
-      if (data.error) { alert(data.error); return; }
-      updateBadge({ provider: data.provider });
-    } catch (e) {
-      alert('모델 변경 실패: ' + e.message);
-    }
+document.querySelectorAll('#mainTabs .nav-link').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('#mainTabs .nav-link').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    const tab = btn.dataset.tab;
+    document.querySelectorAll('.tab-pane').forEach(p => p.style.display = 'none');
+    document.getElementById('tab-' + tab).style.display = '';
+    localStorage.setItem('activeTab', tab);
+    if (tab === 'notes' && !tabLoaded.notes) { loadAllNotes(); tabLoaded.notes = true; }
+    if (tab === 'personas' && !tabLoaded.personas) { loadAllPersonas(); tabLoaded.personas = true; }
   });
+});
 
-  loadModels();
+// 마지막 탭 복원
+const savedTab = localStorage.getItem('activeTab') || 'customers';
+document.querySelector(`[data-tab="${savedTab}"]`)?.click();
+
+// ─── 카드/리스트 뷰 전환 ──────────────────────────────────────────────────────
+function setView(mode) {
+  const isCard = mode === 'card';
+  document.getElementById('cardView').style.display = isCard ? '' : 'none';
+  document.getElementById('listView').style.display = isCard ? 'none' : '';
+  document.getElementById('btnCard').classList.toggle('active', isCard);
+  document.getElementById('btnList').classList.toggle('active', !isCard);
+  localStorage.setItem('dashboardView', mode);
+}
+const savedView = localStorage.getItem('dashboardView') || 'card';
+setView(savedView);
+
+// ─── 모델 선택 ────────────────────────────────────────────────────────────────
+const modelSelect = document.getElementById('modelSelect');
+const modelBadge  = document.getElementById('modelBadge');
+const PROVIDER_COLORS = { anthropic: 'bg-primary', openrouter: 'bg-success' };
+const PROVIDER_LABELS = { anthropic: 'Anthropic', openrouter: 'OpenRouter' };
+
+async function loadModels() {
+  try {
+    const res  = await fetch('/api/models');
+    const data = await res.json();
+    modelSelect.innerHTML = data.models.map(m =>
+      `<option value="${m.id}" ${m.id === data.current ? 'selected' : ''}>${m.label} — ${m.description}</option>`
+    ).join('');
+    updateBadge(data.models.find(m => m.id === data.current));
+  } catch (e) {
+    modelSelect.innerHTML = '<option>불러오기 실패</option>';
+  }
+}
+function updateBadge(meta) {
+  if (!meta) return;
+  const color = PROVIDER_COLORS[meta.provider] || 'bg-secondary';
+  modelBadge.className = `badge ${color} small`;
+  modelBadge.textContent = PROVIDER_LABELS[meta.provider] || meta.provider;
+}
+modelSelect.addEventListener('change', async () => {
+  const res = await fetch('/api/model', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({model: modelSelect.value}) });
+  const data = await res.json();
+  if (!data.error) updateBadge({ provider: data.provider });
+});
+loadModels();
+
+// ═══════════════════ 세일즈 노트 ═════════════════════════════════════════════
+let allNotes = [], filteredNotes = [], notesSortKey = 'Activity_Date', notesSortAsc = false;
+
+async function loadAllNotes() {
+  try {
+    const res = await fetch('/api/all-sales-notes');
+    allNotes = await res.json();
+    // 필터 옵션 구성
+    const customers = [...new Set(allNotes.map(n => n._customer_name).filter(Boolean))].sort();
+    const actTypes  = [...new Set(allNotes.map(n => n.Activity_Type).filter(Boolean))].sort();
+    const sectors   = [...new Set(allNotes.map(n => n.Sector).filter(Boolean))].sort();
+    const salesNames= [...new Set(allNotes.map(n => n.Sales_Name).filter(Boolean))].sort();
+
+    fillSelect('filterCustomer',     customers,  '전체 고객사');
+    fillSelect('filterActivityType', actTypes,   '전체');
+    fillSelect('filterSector',       sectors,    '전체');
+    fillSelect('filterSalesName',    salesNames, '전체');
+
+    filteredNotes = [...allNotes];
+    renderNotesTable();
+  } catch (e) {
+    document.getElementById('notesTableBody').innerHTML =
+      `<tr><td colspan="8" class="text-center text-danger">로딩 실패: ${e.message}</td></tr>`;
+  }
+}
+
+function fillSelect(id, values, placeholder) {
+  const sel = document.getElementById(id);
+  const cur = sel.value;
+  sel.innerHTML = `<option value="">${placeholder}</option>` +
+    values.map(v => `<option value="${v}"${v===cur?' selected':''}>${v}</option>`).join('');
+}
+
+function applyNotesFilter() {
+  const customer   = document.getElementById('filterCustomer').value;
+  const dateFrom   = document.getElementById('filterDateFrom').value;
+  const dateTo     = document.getElementById('filterDateTo').value;
+  const actType    = document.getElementById('filterActivityType').value;
+  const sector     = document.getElementById('filterSector').value;
+  const salesName  = document.getElementById('filterSalesName').value;
+  const search     = document.getElementById('filterSearch').value.trim().toLowerCase();
+
+  filteredNotes = allNotes.filter(n => {
+    const date = n.Activity_Date || n.date || '';
+    if (customer  && n._customer_name !== customer) return false;
+    if (dateFrom  && date < dateFrom) return false;
+    if (dateTo    && date > dateTo)   return false;
+    if (actType   && n.Activity_Type !== actType) return false;
+    if (sector    && n.Sector !== sector) return false;
+    if (salesName && n.Sales_Name !== salesName) return false;
+    if (search) {
+      const hay = [n.Activity_Log, n.Action_Point, n.Customer_Feedback, n.Contact_Name]
+        .join(' ').toLowerCase();
+      if (!hay.includes(search)) return false;
+    }
+    return true;
+  });
+  renderNotesTable();
+}
+
+function resetNotesFilter() {
+  ['filterCustomer','filterActivityType','filterSector','filterSalesName'].forEach(id => {
+    document.getElementById(id).value = '';
+  });
+  document.getElementById('filterDateFrom').value = '';
+  document.getElementById('filterDateTo').value   = '';
+  document.getElementById('filterSearch').value   = '';
+  filteredNotes = [...allNotes];
+  renderNotesTable();
+}
+
+let notesSortDir = { key: 'Activity_Date', asc: false };
+function sortNotes(key) {
+  if (notesSortDir.key === key) notesSortDir.asc = !notesSortDir.asc;
+  else { notesSortDir.key = key; notesSortDir.asc = false; }
+  const { asc } = notesSortDir;
+  filteredNotes.sort((a, b) => {
+    const va = (a[key] || '').toString(), vb = (b[key] || '').toString();
+    return asc ? va.localeCompare(vb) : vb.localeCompare(va);
+  });
+  renderNotesTable();
+}
+
+function renderNotesTable() {
+  document.getElementById('notesCount').textContent = `${filteredNotes.length}건`;
+  const tbody = document.getElementById('notesTableBody');
+  if (!filteredNotes.length) {
+    tbody.innerHTML = '<tr><td colspan="8" class="text-center py-4 text-muted">검색 결과가 없습니다.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = filteredNotes.map((n, i) => `
+    <tr style="cursor:pointer" onclick="showNoteDetail(${i})">
+      <td class="text-nowrap">${n.Activity_Date || n.date || '—'}</td>
+      <td><a href="/customer/${n._customer_id}" class="fw-semibold text-decoration-none" onclick="event.stopPropagation()">${n._customer_name || '—'}</a></td>
+      <td class="small text-muted">${n.Sales_Name || '—'}</td>
+      <td><span class="badge bg-light text-dark border">${n.Activity_Type || '—'}</span></td>
+      <td class="small">${n.Sector || '—'}</td>
+      <td class="small text-muted">${n.Contact_Name || '—'}</td>
+      <td class="text-truncate-cell small text-muted">${n.Action_Point || '—'}</td>
+      <td><button class="btn btn-sm btn-outline-secondary py-0" onclick="event.stopPropagation();showNoteDetail(${i})"><i class="bi bi-eye"></i></button></td>
+    </tr>
+  `).join('');
+}
+
+function showNoteDetail(i) {
+  const n = filteredNotes[i];
+  document.getElementById('noteModalTitle').textContent = `${n._customer_name} — ${n.Activity_Date || ''}`;
+  document.getElementById('noteModalBody').innerHTML = `
+    <div class="row g-3">
+      <div class="col-md-6">
+        <table class="table table-sm table-bordered mb-0">
+          <tr><th class="table-light" style="width:35%">고객사</th><td>${n._customer_name || '—'}</td></tr>
+          <tr><th class="table-light">활동일</th><td>${n.Activity_Date || n.date || '—'}</td></tr>
+          <tr><th class="table-light">영업 담당자</th><td>${n.Sales_Name || '—'}</td></tr>
+          <tr><th class="table-light">고객 유형</th><td>${n.Client_Type || '—'}</td></tr>
+          <tr><th class="table-light">담당자</th><td>${n.Contact_Name || '—'} (${n.Contact_Role || '—'})</td></tr>
+          <tr><th class="table-light">활동 유형</th><td>${n.Activity_Type || '—'}</td></tr>
+          <tr><th class="table-light">섹터</th><td>${n.Sector || '—'}</td></tr>
+        </table>
+      </div>
+      <div class="col-md-6 d-flex flex-column gap-2">
+        ${n.Activity_Log ? `<div class="p-2 bg-light rounded small"><strong class="d-block text-primary mb-1"><i class="bi bi-chat-left-text me-1"></i>활동 로그</strong>${escHtml(n.Activity_Log)}</div>` : ''}
+        ${n.Customer_Feedback ? `<div class="p-2 bg-warning bg-opacity-10 rounded small"><strong class="d-block text-warning-emphasis mb-1"><i class="bi bi-chat-right-quote me-1"></i>Customer Feedback</strong>${escHtml(n.Customer_Feedback)}</div>` : ''}
+        ${n.Action_Point ? `<div class="p-2 bg-success bg-opacity-10 rounded small"><strong class="d-block text-success mb-1"><i class="bi bi-check2-circle me-1"></i>Action Point</strong>${escHtml(n.Action_Point)}</div>` : ''}
+      </div>
+    </div>`;
+  new bootstrap.Modal(document.getElementById('noteDetailModal')).show();
+}
+
+// ═══════════════════ 페르소나 ═════════════════════════════════════════════════
+let allPersonas = [], filteredPersonas = [], personasSortDir = { key: '_company_name', asc: true };
+
+async function loadAllPersonas() {
+  try {
+    const res = await fetch('/api/all-personas');
+    allPersonas = await res.json();
+    filteredPersonas = [...allPersonas];
+    renderPersonasTable();
+  } catch (e) {
+    document.getElementById('personasTableBody').innerHTML =
+      `<tr><td colspan="7" class="text-center text-danger">로딩 실패: ${e.message}</td></tr>`;
+  }
+}
+
+function applyPersonaFilter() {
+  const search = document.getElementById('personaSearch').value.trim().toLowerCase();
+  const tier   = document.getElementById('personaTierFilter').value;
+  filteredPersonas = allPersonas.filter(p => {
+    if (tier && p._tier !== tier) return false;
+    if (search) {
+      const hay = [p._company_name, JSON.stringify(p)].join(' ').toLowerCase();
+      if (!hay.includes(search)) return false;
+    }
+    return true;
+  });
+  renderPersonasTable();
+}
+
+function resetPersonaFilter() {
+  document.getElementById('personaSearch').value = '';
+  document.getElementById('personaTierFilter').value = '';
+  filteredPersonas = [...allPersonas];
+  renderPersonasTable();
+}
+
+function sortPersonas(key) {
+  if (personasSortDir.key === key) personasSortDir.asc = !personasSortDir.asc;
+  else { personasSortDir.key = key; personasSortDir.asc = true; }
+  const { asc } = personasSortDir;
+  filteredPersonas.sort((a, b) => {
+    const va = (a[key] || '').toString(), vb = (b[key] || '').toString();
+    return asc ? va.localeCompare(vb) : vb.localeCompare(va);
+  });
+  renderPersonasTable();
+}
+
+function getPersonaField(p, ...keys) {
+  for (const k of keys) {
+    const v = p[k];
+    if (v && typeof v === 'string') return v;
+    if (v && Array.isArray(v)) return v.join(', ');
+  }
+  return '—';
+}
+
+function renderPersonasTable() {
+  document.getElementById('personasCount').textContent = `${filteredPersonas.length}명`;
+  const tbody = document.getElementById('personasTableBody');
+  if (!filteredPersonas.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted">데이터가 없습니다.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = filteredPersonas.map((p, i) => {
+    const tier = p._tier || '';
+    const sectors = getPersonaField(p, 'preferred_sectors', 'preferred_sector', 'sectors');
+    const content = getPersonaField(p, 'preferred_content_types', 'content_preference', 'content_types');
+    const style   = getPersonaField(p, 'analysis_style', 'preferred_analysis_style', 'investment_style');
+    const updated = p.updated_at || '—';
+    return `
+      <tr style="cursor:pointer" onclick="showPersonaDetail(${i})">
+        <td>${tier ? `<span class="tier-badge tier-${tier}">${tier}</span>` : '—'}</td>
+        <td class="fw-semibold"><a href="/customer/${p.customer_id}" class="text-decoration-none" onclick="event.stopPropagation()">${p._company_name || p.customer_id}</a></td>
+        <td class="small text-truncate-cell">${sectors}</td>
+        <td class="small text-truncate-cell">${content}</td>
+        <td class="small text-truncate-cell">${style}</td>
+        <td class="small text-muted text-nowrap">${updated}</td>
+        <td><button class="btn btn-sm btn-outline-secondary py-0" onclick="event.stopPropagation();showPersonaDetail(${i})"><i class="bi bi-eye"></i></button></td>
+      </tr>`;
+  }).join('');
+}
+
+function showPersonaDetail(i) {
+  const p = filteredPersonas[i];
+  document.getElementById('personaModalTitle').textContent = p._company_name || p.customer_id;
+  document.getElementById('personaCustomerLink').href = `/customer/${p.customer_id}`;
+
+  const skip = new Set(['customer_id','_company_name','_tier','updated_at']);
+  const sections = [];
+  for (const [k, v] of Object.entries(p)) {
+    if (skip.has(k) || !v) continue;
+    const label = k.replace(/_/g,' ').replace(/\b\w/g, c => c.toUpperCase());
+    let content = '';
+    if (Array.isArray(v)) content = `<ul class="mb-0 ps-3">${v.map(item => `<li>${escHtml(String(item))}</li>`).join('')}</ul>`;
+    else if (typeof v === 'object') content = `<pre class="mb-0 small" style="white-space:pre-wrap">${escHtml(JSON.stringify(v,null,2))}</pre>`;
+    else content = escHtml(String(v));
+    sections.push(`<div class="persona-section"><h6>${label}</h6>${content}</div>`);
+  }
+
+  document.getElementById('personaModalBody').innerHTML = `
+    <div class="d-flex gap-2 mb-3 flex-wrap">
+      ${p._tier ? `<span class="badge fs-6 tier-badge tier-${p._tier}">${p._tier}등급</span>` : ''}
+      ${p.updated_at ? `<span class="badge bg-secondary">업데이트: ${p.updated_at}</span>` : ''}
+    </div>
+    <div class="row g-2">${sections.map(s => `<div class="col-md-6">${s}</div>`).join('')}</div>
+  `;
+  new bootstrap.Modal(document.getElementById('personaDetailModal')).show();
+}
+
+// ─── 유틸 ─────────────────────────────────────────────────────────────────────
+function escHtml(s) {
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// Enter 키로 필터 적용
+document.getElementById('filterSearch').addEventListener('keydown', e => { if(e.key==='Enter') applyNotesFilter(); });
+document.getElementById('personaSearch').addEventListener('keydown', e => { if(e.key==='Enter') applyPersonaFilter(); });
 </script>
 </body>
 </html>

@@ -498,6 +498,34 @@ async def api_customers():
     return dt.get_all_customers()
 
 
+@app.get("/api/all-sales-notes")
+async def api_all_sales_notes():
+    """전체 고객의 영업 노트를 통합 조회 (날짜 내림차순)"""
+    customers = dt.get_all_customers()
+    cid_to_name = {c["customer_id"]: c.get("company_name", c["customer_id"]) for c in customers if "customer_id" in c}
+    all_notes = []
+    for cid, name in cid_to_name.items():
+        for n in dt.get_sales_notes(cid):
+            n["_customer_id"] = cid
+            n["_customer_name"] = name
+            all_notes.append(n)
+    all_notes.sort(key=lambda x: x.get("Activity_Date") or x.get("date", ""), reverse=True)
+    return all_notes
+
+
+@app.get("/api/all-personas")
+async def api_all_personas():
+    """전체 고객 페르소나 조회 (고객 정보 포함)"""
+    personas = dt.get_all_personas()
+    customers = {c["customer_id"]: c for c in dt.get_all_customers() if "customer_id" in c}
+    for p in personas:
+        cid = p.get("customer_id")
+        if cid and cid in customers:
+            p["_company_name"] = customers[cid].get("company_name", cid)
+            p["_tier"] = customers[cid].get("tier", "")
+    return personas
+
+
 @app.get("/api/customer/{customer_id}")
 async def api_customer(customer_id: str):
     result = load_customer_results(customer_id)
