@@ -429,7 +429,9 @@ function runAgent(type) {
   logEl.style.display = 'block';
   logEl.innerHTML = '';
 
-  const es = new EventSource(cfg.endpoint + CUSTOMER_ID);
+  const forceRegen = (type === 'persona' || type === 'nba');
+  const url = cfg.endpoint + CUSTOMER_ID + (forceRegen ? '?force=true' : '');
+  const es = new EventSource(url);
   es.onmessage = function(e) {
     const d = JSON.parse(e.data);
     if (d.type === 'log') {

@@ -171,7 +171,7 @@ MODEL_REGISTRY: dict[str, dict] = {
     },
 }
 
-_model_setting: dict[str, str] = {"model": "claude-opus-4-6"}
+_model_setting: dict[str, str] = {"model": "google/gemma-4-26b-a4b-it:free"}
 
 # 현재 실행 중인 분석 고객 ID 집합 (중복 방지)
 running_set: set[str] = set()
@@ -658,18 +658,24 @@ def _agent_sse(customer_id: str, agent_type: str, since_date: str = None):
 
 
 @app.get("/api/run/persona/{customer_id}")
-async def api_run_persona(customer_id: str):
-    """Persona Agent 단독 실행 — 마지막 페르소나 업데이트 이후 노트만 사용"""
-    persona = dt.get_persona(customer_id)
-    since_date = persona.get("updated_at") if persona else None
+async def api_run_persona(customer_id: str, force: bool = False):
+    """Persona Agent 단독 실행 — 기본은 증분, force=true 시 전체 재생성"""
+    if force:
+        since_date = None
+    else:
+        persona = dt.get_persona(customer_id)
+        since_date = persona.get("updated_at") if persona else None
     return _agent_sse(customer_id, "persona", since_date)
 
 
 @app.get("/api/run/nba/{customer_id}")
-async def api_run_nba(customer_id: str):
-    """NBA Agent 단독 실행 — 마지막 NBA 제안 이후 노트만 사용"""
-    nba = dt.get_nba(customer_id)
-    since_date = nba.get("generated_at") if nba else None
+async def api_run_nba(customer_id: str, force: bool = False):
+    """NBA Agent 단독 실행 — 기본은 증분, force=true 시 전체 재생성"""
+    if force:
+        since_date = None
+    else:
+        nba = dt.get_nba(customer_id)
+        since_date = nba.get("generated_at") if nba else None
     return _agent_sse(customer_id, "nba", since_date)
 
 
@@ -687,6 +693,3 @@ async def api_run_qc(customer_id: str):
 
 # ─── 진입점 ───────────────────────────────────────────────────────────────────
 
-if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
