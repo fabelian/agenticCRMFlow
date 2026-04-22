@@ -86,7 +86,10 @@
         <button class="nav-link active" data-tab="customers"><i class="bi bi-people me-1"></i>고객 대시보드</button>
       </li>
       <li class="nav-item">
-        <button class="nav-link" data-tab="notes"><i class="bi bi-journal-text me-1"></i>세일즈 노트</button>
+        <button class="nav-link" data-tab="notes"><i class="bi bi-journal-text me-1"></i>세일즈 노트 전체 조회</button>
+      </li>
+      <li class="nav-item">
+        <button class="nav-link" data-tab="upload"><i class="bi bi-upload me-1"></i>세일즈 노트 일괄 업로드</button>
       </li>
       <li class="nav-item">
         <button class="nav-link" data-tab="personas"><i class="bi bi-person-badge me-1"></i>페르소나</button>
@@ -351,6 +354,72 @@
   </div>
 </div>
 
+<!-- ═══════════════════ TAB: 세일즈 노트 일괄 업로드 ═══════════════════ -->
+<div id="tab-upload" class="tab-pane" style="display:none">
+  <div class="container py-4 pb-5">
+    <div class="d-flex align-items-center mb-3">
+      <h4 class="fw-bold mb-0"><i class="bi bi-upload me-2 text-primary"></i>세일즈 노트 일괄 업로드</h4>
+    </div>
+
+    <div class="card border-0 shadow-sm mb-3">
+      <div class="card-body">
+        <p class="text-muted small mb-3">
+          <i class="bi bi-info-circle me-1"></i>
+          첫 행은 컬럼 헤더(Sales_ID, Sales_Name, Activity_Date, Client_Type, Client_Name, Contact_Role, Contact_Name, Sector, Activity_Type, Activity_Log, Customer_Feedback, Action_Point, Language)여야 합니다. Client_Name이 등록된 고객사와 일치하는 행만 DB에 반영됩니다.
+        </p>
+        <div class="row g-2 align-items-end">
+          <div class="col-md-6">
+            <label class="form-label small fw-semibold mb-1">CSV 파일 선택</label>
+            <input type="file" id="csvFile" class="form-control form-control-sm" accept=".csv,text/csv">
+          </div>
+          <div class="col-auto">
+            <button class="btn btn-primary btn-sm" id="btnCsvLoad" onclick="loadCsvFile()">
+              <i class="bi bi-upload me-1"></i>CSV 불러오기
+            </button>
+          </div>
+          <div class="col-auto">
+            <button class="btn btn-success btn-sm" id="btnCsvCommit" onclick="commitCsvRows()" disabled>
+              <i class="bi bi-database-add me-1"></i>DB에 반영
+            </button>
+          </div>
+          <div class="col">
+            <div id="csvStatus" class="small text-muted"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- 미리보기 요약 -->
+    <div id="csvSummary" class="mb-2" style="display:none">
+      <span class="badge bg-secondary me-2">전체 <span id="csvSumTotal">0</span>건</span>
+      <span class="badge bg-success me-2">유효 <span id="csvSumValid">0</span>건</span>
+      <span class="badge bg-danger">오류 <span id="csvSumInvalid">0</span>건</span>
+    </div>
+
+    <!-- 미리보기 테이블 -->
+    <div class="card border-0 shadow-sm" id="csvPreviewCard" style="display:none">
+      <div class="table-responsive" style="max-height: 70vh">
+        <table class="table table-sm table-hover mb-0 data-table">
+          <thead class="table-dark" style="position:sticky; top:0; z-index:1">
+            <tr>
+              <th style="width:50px">행</th>
+              <th style="width:60px">상태</th>
+              <th>Activity_Date</th>
+              <th>Client_Name</th>
+              <th>매핑 고객</th>
+              <th>Sector</th>
+              <th>Activity_Type</th>
+              <th>Sales_Name</th>
+              <th>오류</th>
+            </tr>
+          </thead>
+          <tbody id="csvPreviewBody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ═══════════════════ TAB 3: 페르소나 ═══════════════════ -->
 <div id="tab-personas" class="tab-pane" style="display:none">
   <div class="container py-4 pb-5">
@@ -436,7 +505,7 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 // ─── 탭 전환 ─────────────────────────────────────────────────────────────────
-const tabLoaded = { customers: true, notes: false, personas: false };
+const tabLoaded = { customers: true, notes: false, upload: false, personas: false };
 
 document.querySelectorAll('#mainTabs .nav-link').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -740,6 +809,118 @@ function showPersonaDetail(i) {
     <div class="row g-2">${sections.map(s => `<div class="col-md-6">${s}</div>`).join('')}</div>
   `;
   new bootstrap.Modal(document.getElementById('personaDetailModal')).show();
+}
+
+// ═══════════════════ 세일즈 노트 일괄 업로드 ═════════════════════════════════
+let csvParsedRows = [];
+
+async function loadCsvFile() {
+  const fileInput = document.getElementById('csvFile');
+  const file = fileInput.files[0];
+  const statusEl = document.getElementById('csvStatus');
+  const loadBtn = document.getElementById('btnCsvLoad');
+  const commitBtn = document.getElementById('btnCsvCommit');
+
+  if (!file) {
+    statusEl.innerHTML = '<span class="text-danger"><i class="bi bi-exclamation-circle me-1"></i>파일을 선택하세요.</span>';
+    return;
+  }
+
+  loadBtn.disabled = true;
+  loadBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>파싱 중...';
+  statusEl.innerHTML = '<span class="text-muted">CSV 파싱 중...</span>';
+
+  const fd = new FormData();
+  fd.append('file', file);
+  try {
+    const res = await fetch('/api/sales-notes/upload', { method: 'POST', body: fd });
+    const data = await res.json();
+    if (data.error) {
+      statusEl.innerHTML = `<span class="text-danger"><i class="bi bi-exclamation-circle me-1"></i>${escHtml(data.error)}</span>`;
+      csvParsedRows = [];
+      commitBtn.disabled = true;
+      return;
+    }
+    csvParsedRows = data.rows || [];
+    renderCsvPreview(data.summary);
+    const validCnt = data.summary?.valid || 0;
+    commitBtn.disabled = validCnt === 0;
+    statusEl.innerHTML = `<span class="text-success"><i class="bi bi-check-circle me-1"></i>${data.summary.total}건 파싱 완료 (유효 ${validCnt}건)</span>`;
+  } catch (e) {
+    statusEl.innerHTML = `<span class="text-danger"><i class="bi bi-exclamation-circle me-1"></i>업로드 실패: ${escHtml(e.message)}</span>`;
+  } finally {
+    loadBtn.disabled = false;
+    loadBtn.innerHTML = '<i class="bi bi-upload me-1"></i>CSV 불러오기';
+  }
+}
+
+function renderCsvPreview(summary) {
+  document.getElementById('csvSummary').style.display = '';
+  document.getElementById('csvSumTotal').textContent   = summary?.total ?? 0;
+  document.getElementById('csvSumValid').textContent   = summary?.valid ?? 0;
+  document.getElementById('csvSumInvalid').textContent = summary?.invalid ?? 0;
+
+  const card = document.getElementById('csvPreviewCard');
+  const tbody = document.getElementById('csvPreviewBody');
+  card.style.display = '';
+  if (!csvParsedRows.length) {
+    tbody.innerHTML = '<tr><td colspan="9" class="text-center text-muted py-3">데이터 없음</td></tr>';
+    return;
+  }
+  tbody.innerHTML = csvParsedRows.map(r => {
+    const badge = r._valid
+      ? '<span class="badge bg-success"><i class="bi bi-check"></i></span>'
+      : '<span class="badge bg-danger"><i class="bi bi-x"></i></span>';
+    const rowClass = r._valid ? '' : 'table-danger';
+    return `
+      <tr class="${rowClass}">
+        <td class="text-muted small">${r._row_index ?? ''}</td>
+        <td>${badge}</td>
+        <td class="small">${escHtml(r.Activity_Date || '')}</td>
+        <td class="small">${escHtml(r.Client_Name || '')}</td>
+        <td class="small text-muted">${escHtml(r._customer_id || '—')}</td>
+        <td class="small">${escHtml(r.Sector || '')}</td>
+        <td class="small">${escHtml(r.Activity_Type || '')}</td>
+        <td class="small">${escHtml(r.Sales_Name || '')}</td>
+        <td class="small text-danger">${escHtml(r._error || '')}</td>
+      </tr>`;
+  }).join('');
+}
+
+async function commitCsvRows() {
+  const commitBtn = document.getElementById('btnCsvCommit');
+  const statusEl = document.getElementById('csvStatus');
+  const validRows = csvParsedRows.filter(r => r._valid);
+  if (!validRows.length) {
+    statusEl.innerHTML = '<span class="text-danger">반영할 유효 행이 없습니다.</span>';
+    return;
+  }
+  if (!confirm(`유효한 ${validRows.length}건을 DB에 반영합니다. 계속하시겠습니까?`)) return;
+
+  commitBtn.disabled = true;
+  commitBtn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>반영 중...';
+  statusEl.innerHTML = '<span class="text-muted">DB에 저장 중...</span>';
+
+  try {
+    const res = await fetch('/api/sales-notes/bulk-commit', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ rows: csvParsedRows }),
+    });
+    const data = await res.json();
+    const failCnt = (data.failed || []).length;
+    const msg = failCnt
+      ? `<i class="bi bi-check-circle me-1"></i>${data.inserted}건 반영 완료 <span class="text-danger">(${failCnt}건 실패)</span>`
+      : `<i class="bi bi-check-circle me-1"></i><strong>${data.inserted}건 반영 완료 — 모두 성공</strong>`;
+    statusEl.innerHTML = `<span class="text-success">${msg}</span>`;
+    // 전체 조회 탭이 이미 로드되어 있다면 새로고침
+    tabLoaded.notes = false;
+  } catch (e) {
+    statusEl.innerHTML = `<span class="text-danger"><i class="bi bi-exclamation-circle me-1"></i>반영 실패: ${escHtml(e.message)}</span>`;
+  } finally {
+    commitBtn.disabled = false;
+    commitBtn.innerHTML = '<i class="bi bi-database-add me-1"></i>DB에 반영';
+  }
 }
 
 // ─── 유틸 ─────────────────────────────────────────────────────────────────────

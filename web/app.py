@@ -15,7 +15,7 @@ from urllib.parse import urlparse
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, UploadFile, File
 from fastapi.responses import HTMLResponse, JSONResponse, StreamingResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel
@@ -501,6 +501,94 @@ async def api_add_sales_note(body: SalesNoteCreate):
     existing = dt.get_sales_notes(body.customer_id)
     note_data["Sales_ID"] = f"S{len(existing) + 1:02d}"
     return dt.add_sales_note(body.customer_id, note_data)
+
+
+@app.post("/api/sales-notes/upload")
+async def api_upload_sales_notes_csv(file: UploadFile = File(...)):
+    """CSV 파일을 파싱하고 행별 검증 결과를 반환 (DB 저장 없음)."""
+    import csv as _csv
+
+    raw = await file.read()
+    # 인코딩 자동 감지: utf-8-sig (BOM 포함) → cp949
+    text = None
+    for enc in ("utf-8-sig", "utf-8", "cp949"):
+        try:
+            text = raw.decode(enc)
+            break
+        except UnicodeDecodeError:
+            continue
+    if text is None:
+        return JSONResponse(
+            {"error": "CSV 인코딩을 인식할 수 없습니다 (UTF-8/CP949 지원)."},
+            status_code=400,
+        )
+
+    try:
+        reader = _csv.DictReader(io.StringIO(text))
+        rows_raw = list(reader)
+    except Exception as exc:
+        return JSONResponse({"error": f"CSV 파싱 실패: {exc}"}, status_code=400)
+
+    # Client_Name → customer_id 매핑
+    customers = dt.get_all_customers()
+    name_to_id = {c.get("company_name"): c.get("customer_id") for c in customers if c.get("company_name")}
+
+    rows_out = []
+    valid_cnt = 0
+    for idx, row in enumerate(rows_raw):
+        client_name = (row.get("Client_Name") or "").strip()
+        activity_date = (row.get("Activity_Date") or "").strip()
+        customer_id = name_to_id.get(client_name)
+
+        error = None
+        if not client_name:
+            error = "Client_Name 누락"
+        elif not customer_id:
+            error = f"매칭되는 고객사 없음: {client_name}"
+        elif not activity_date:
+            error = "Activity_Date 누락"
+
+        row_clean = {k: (v.strip() if isinstance(v, str) else v) for k, v in row.items()}
+        row_clean.update({
+            "_row_index": idx + 2,  # CSV 행 번호 (헤더=1, 데이터 시작=2)
+            "_customer_id": customer_id,
+            "_valid": error is None,
+            "_error": error,
+        })
+        if error is None:
+            valid_cnt += 1
+        rows_out.append(row_clean)
+
+    return {
+        "rows": rows_out,
+        "summary": {"total": len(rows_out), "valid": valid_cnt, "invalid": len(rows_out) - valid_cnt},
+    }
+
+
+class BulkCommitBody(BaseModel):
+    rows: list[dict]
+
+
+@app.post("/api/sales-notes/bulk-commit")
+async def api_bulk_commit_sales_notes(body: BulkCommitBody):
+    """upload에서 파싱된 rows 중 _valid=true 항목을 DB에 insert."""
+    inserted = 0
+    failed: list[dict] = []
+    for row in body.rows:
+        if not row.get("_valid"):
+            continue
+        customer_id = row.get("_customer_id")
+        if not customer_id:
+            failed.append({"row_index": row.get("_row_index"), "error": "customer_id 없음"})
+            continue
+        # 메타 필드 제거 후 순수 note 데이터만 저장
+        note_data = {k: v for k, v in row.items() if not k.startswith("_")}
+        try:
+            dt.add_sales_note(customer_id, note_data)
+            inserted += 1
+        except Exception as exc:
+            failed.append({"row_index": row.get("_row_index"), "error": str(exc)})
+    return {"inserted": inserted, "failed": failed}
 
 
 @app.get("/api/customers")
