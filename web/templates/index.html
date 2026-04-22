@@ -62,6 +62,10 @@
     /* 페르소나 모달 */
     .persona-section { background: #f8f9fa; border-radius: 8px; padding: 1rem; margin-bottom: .75rem; }
     .persona-section h6 { font-size: .85rem; font-weight: 700; color: #0d6efd; margin-bottom: .5rem; }
+
+    /* Red Flag 행 하이라이트 */
+    .note-red-flag-row { background: #ffe5e5 !important; border-left: 4px solid #dc3545; }
+    .note-red-flag-row:hover { background: #ffd1d1 !important; }
   </style>
 </head>
 <body>
@@ -362,9 +366,13 @@
     <div class="d-flex align-items-center mb-3 flex-wrap gap-2">
       <h4 class="fw-bold mb-0"><i class="bi bi-journal-text me-2 text-primary"></i>세일즈 노트 전체 조회</h4>
       <span class="badge bg-secondary" id="notesCount">로딩 중...</span>
-      <div class="ms-auto d-flex gap-2">
+      <div class="ms-auto d-flex gap-2 flex-wrap">
         <button class="btn btn-sm btn-primary" onclick="openAddNoteModal()">
           <i class="bi bi-plus-lg me-1"></i>노트 추가
+        </button>
+        <button class="btn btn-sm btn-warning text-dark" id="btnCheckDislikes" onclick="checkDislikesForSelectedNotes()" disabled
+          title="선택한 노트의 Action Point가 해당 고객 페르소나의 explicit_dislikes에 해당하는지 판정합니다.">
+          <i class="bi bi-flag-fill me-1"></i>불만 위반 분석 <span class="badge bg-dark text-warning ms-1" id="selectedNoteCheckBadge">0</span>
         </button>
         <button class="btn btn-sm btn-danger" id="btnDeleteSelectedNotes" onclick="deleteSelectedNotes()" disabled>
           <i class="bi bi-trash me-1"></i>선택 삭제 <span class="badge bg-light text-dark ms-1" id="selectedNoteCountBadge">0</span>
@@ -428,6 +436,7 @@
               <th style="width:36px" class="text-center">
                 <input type="checkbox" class="form-check-input" id="notesAllSelectAll" onclick="toggleSelectAllNotes(this)">
               </th>
+              <th style="width:60px" class="text-center" title="Red Flag: 페르소나 explicit_dislikes 위반 여부">🚩</th>
               <th onclick="sortNotes('Activity_Date')" style="cursor:pointer">날짜 <i class="bi bi-arrow-down-up"></i></th>
               <th onclick="sortNotes('_customer_name')" style="cursor:pointer">고객사 <i class="bi bi-arrow-down-up"></i></th>
               <th>영업 담당자</th>
@@ -439,7 +448,7 @@
             </tr>
           </thead>
           <tbody id="notesTableBody">
-            <tr><td colspan="9" class="text-center py-4 text-muted">데이터 로딩 중...</td></tr>
+            <tr><td colspan="10" class="text-center py-4 text-muted">데이터 로딩 중...</td></tr>
           </tbody>
         </table>
       </div>
@@ -1213,7 +1222,7 @@ async function loadAllNotes() {
     renderNotesTable();
   } catch (e) {
     document.getElementById('notesTableBody').innerHTML =
-      `<tr><td colspan="9" class="text-center text-danger">로딩 실패: ${e.message}</td></tr>`;
+      `<tr><td colspan="10" class="text-center text-danger">로딩 실패: ${e.message}</td></tr>`;
   }
 }
 
@@ -1278,7 +1287,7 @@ function renderNotesTable() {
   document.getElementById('notesCount').textContent = `${filteredNotes.length}건`;
   const tbody = document.getElementById('notesTableBody');
   if (!filteredNotes.length) {
-    tbody.innerHTML = '<tr><td colspan="9" class="text-center py-4 text-muted">검색 결과가 없습니다.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="10" class="text-center py-4 text-muted">검색 결과가 없습니다.</td></tr>';
     refreshNoteSelectionUI();
     return;
   }
@@ -1286,11 +1295,20 @@ function renderNotesTable() {
     const nid = n.note_id || '';
     const checked = nid && selectedNoteIds.has(nid) ? 'checked' : '';
     const disabled = nid ? '' : 'disabled';
+    const isFlagged = !!n._red_flag;
+    const rowClass = isFlagged ? 'note-red-flag-row' : '';
+    const flagTooltip = isFlagged
+      ? `위반: ${n._red_flag_matched || ''}${n._red_flag_reason ? ' — ' + n._red_flag_reason : ''}`
+      : (n._red_flag_checked_at ? `분석 완료 (${n._red_flag_checked_at}) — 위반 아님` : '미분석');
+    const flagCell = isFlagged
+      ? `<input type="checkbox" checked disabled class="form-check-input" style="accent-color:#dc3545">`
+      : `<input type="checkbox" disabled class="form-check-input">`;
     return `
-    <tr style="cursor:pointer" onclick="showNoteDetail(${i})">
+    <tr class="${rowClass}" style="cursor:pointer" onclick="showNoteDetail(${i})">
       <td class="text-center" onclick="event.stopPropagation()">
         <input type="checkbox" class="form-check-input note-row-check" data-nid="${escHtml(nid)}" ${checked} ${disabled} onchange="onNoteRowCheck(this)">
       </td>
+      <td class="text-center" title="${escHtml(flagTooltip)}">${flagCell}</td>
       <td class="text-nowrap">${n.Activity_Date || n.date || '—'}</td>
       <td><a href="/customer/${n._customer_id}" class="fw-semibold text-decoration-none" onclick="event.stopPropagation()">${n._customer_name || '—'}</a></td>
       <td class="small text-muted">${n.Sales_Name || '—'}</td>
@@ -1333,15 +1351,51 @@ function refreshNoteSelectionUI() {
     if (!visibleIds.has(id)) selectedNoteIds.delete(id);
   }
   const count = selectedNoteIds.size;
-  const btn = document.getElementById('btnDeleteSelectedNotes');
-  const badge = document.getElementById('selectedNoteCountBadge');
-  if (btn) btn.disabled = count === 0;
-  if (badge) badge.textContent = count;
+  const delBtn = document.getElementById('btnDeleteSelectedNotes');
+  const delBadge = document.getElementById('selectedNoteCountBadge');
+  if (delBtn) delBtn.disabled = count === 0;
+  if (delBadge) delBadge.textContent = count;
+  const checkBtn = document.getElementById('btnCheckDislikes');
+  const checkBadge = document.getElementById('selectedNoteCheckBadge');
+  if (checkBtn) checkBtn.disabled = count === 0;
+  if (checkBadge) checkBadge.textContent = count;
   const header = document.getElementById('notesAllSelectAll');
   if (header) {
     const selectable = filteredNotes.filter(n => n.note_id).length;
     header.checked = selectable > 0 && count === selectable;
     header.indeterminate = count > 0 && count < selectable;
+  }
+}
+
+async function checkDislikesForSelectedNotes() {
+  const ids = Array.from(selectedNoteIds);
+  if (!ids.length) return;
+  const btn = document.getElementById('btnCheckDislikes');
+  const orig = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>분석 중...';
+  try {
+    const res = await fetch('/api/sales-notes/check-dislikes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ note_ids: ids }),
+    });
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      throw new Error(err.detail || `HTTP ${res.status}`);
+    }
+    const data = await res.json();
+    await loadAllNotes();
+    const skippedMsg = (data.skipped_customers || []).length
+      ? `\n\n⚠️ 일부 고객은 판정에서 제외되었습니다:\n` +
+        data.skipped_customers.map(s => `  · ${s.customer_id} — ${s.reason}`).join('\n')
+      : '';
+    alert(`분석 완료 (${data.checked_at})\n총 ${data.total}건 중 🚩 ${data.flagged}건이 레드 플래그입니다.${skippedMsg}`);
+  } catch (e) {
+    alert(`분석 실패: ${e.message}`);
+  } finally {
+    btn.innerHTML = orig;
+    refreshNoteSelectionUI();
   }
 }
 

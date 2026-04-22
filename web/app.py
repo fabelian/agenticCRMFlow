@@ -36,6 +36,7 @@ from agents.persona_agent import PersonaAgent
 from agents.nba_agent import NBAAgent
 from agents.activity_agent import ActivityAgent
 from agents.qc_agent import QCAgent
+from agents.dislike_checker_agent import DislikeCheckerAgent
 
 
 @asynccontextmanager
@@ -466,6 +467,10 @@ class SalesNoteDelete(BaseModel):
     note_ids: list[str]
 
 
+class DislikeCheckRequest(BaseModel):
+    note_ids: list[str]
+
+
 class SalesNoteCreate(BaseModel):
     customer_id: str
     Sales_Name: str
@@ -540,6 +545,139 @@ async def api_delete_sales_notes(body: SalesNoteDelete):
     if not ids:
         raise HTTPException(status_code=400, detail="삭제할 note_id가 없습니다.")
     return dt.delete_sales_notes(ids)
+
+
+@app.post("/api/sales-notes/check-dislikes")
+async def api_check_dislikes(body: DislikeCheckRequest):
+    """선택된 세일즈 노트들의 Action_Point가 해당 고객 페르소나의 explicit_dislikes에
+    해당하는지 DislikeCheckerAgent로 판정하고, 결과를 각 노트에 영속화한다.
+    고객별로 그룹화해 에이전트를 1회씩 실행 (호출 비용 최소화)."""
+    from datetime import datetime as _dt
+    from fastapi import HTTPException
+
+    ids = [nid for nid in body.note_ids if nid]
+    if not ids:
+        raise HTTPException(status_code=400, detail="분석할 note_id가 없습니다.")
+
+    # 1) 노트 로드 및 유효성 체크 — note_id → (customer_id, action_point) 맵
+    id_to_meta: dict[str, dict] = {}
+    missing: list[str] = []
+    for nid in ids:
+        # sales_notes 테이블을 직접 조회 (data_tools에 note_id 단건 조회 헬퍼가 없어 경량 인라인)
+        from db.database import SalesNote
+        with dt._session() as session:
+            row = session.query(SalesNote).filter_by(note_id=nid).first()
+            if not row:
+                missing.append(nid)
+                continue
+            data = row.data or {}
+            id_to_meta[nid] = {
+                "customer_id": row.customer_id,
+                "action_point": data.get("Action_Point") or "",
+            }
+
+    # 2) 고객별 그룹화
+    groups: dict[str, list[dict]] = {}
+    for nid, meta in id_to_meta.items():
+        groups.setdefault(meta["customer_id"], []).append({
+            "note_id": nid,
+            "action_point": meta["action_point"],
+        })
+
+    # 3) 모델/프로바이더 선택 — 전역 모델 설정 재사용
+    selected_model = _model_setting["model"]
+    provider = MODEL_REGISTRY.get(selected_model, MODEL_REGISTRY["claude-opus-4-6"])["provider"]
+
+    aggregated: list[dict] = []
+    skipped_customers: list[dict] = []
+    checked_at = _dt.now().strftime("%Y-%m-%d %H:%M")
+
+    # 4) 고객별로 에이전트 실행
+    for cid, notes in groups.items():
+        customer = dt.get_customer(cid) or {}
+        company_name = customer.get("company_name", cid)
+        persona = dt.get_persona(cid) or {}
+        dislikes = persona.get("explicit_dislikes") or []
+
+        # Action_Point가 비어있는 노트는 LLM에 보내지 않고 즉시 false 처리
+        empty_ap = [n for n in notes if not (n.get("action_point") or "").strip()]
+        nonempty_ap = [n for n in notes if (n.get("action_point") or "").strip()]
+
+        results_for_customer: list[dict] = [
+            {
+                "note_id": n["note_id"],
+                "is_red_flag": False,
+                "matched_dislike": "",
+                "reason": "Action Point 없음",
+            }
+            for n in empty_ap
+        ]
+
+        if nonempty_ap:
+            if not persona:
+                skipped_customers.append({"customer_id": cid, "reason": "페르소나 미생성"})
+                results_for_customer.extend([
+                    {
+                        "note_id": n["note_id"],
+                        "is_red_flag": False,
+                        "matched_dislike": "",
+                        "reason": "페르소나 미생성 — 판정 불가",
+                    }
+                    for n in nonempty_ap
+                ])
+            elif not dislikes:
+                results_for_customer.extend([
+                    {
+                        "note_id": n["note_id"],
+                        "is_red_flag": False,
+                        "matched_dislike": "",
+                        "reason": "페르소나에 explicit_dislikes 항목 없음",
+                    }
+                    for n in nonempty_ap
+                ])
+            else:
+                try:
+                    agent = DislikeCheckerAgent(model=selected_model, provider=provider)
+                    batch = agent.check(cid, company_name, list(dislikes), nonempty_ap)
+                    results_for_customer.extend(batch)
+                except Exception as exc:
+                    import traceback; traceback.print_exc()
+                    results_for_customer.extend([
+                        {
+                            "note_id": n["note_id"],
+                            "is_red_flag": False,
+                            "matched_dislike": "",
+                            "reason": f"에이전트 오류: {type(exc).__name__}",
+                        }
+                        for n in nonempty_ap
+                    ])
+
+        # 5) 각 노트에 영속화
+        for r in results_for_customer:
+            patch = {
+                "_red_flag": bool(r["is_red_flag"]),
+                "_red_flag_matched": r.get("matched_dislike", ""),
+                "_red_flag_reason": r.get("reason", ""),
+                "_red_flag_checked_at": checked_at,
+            }
+            dt.update_sales_note(r["note_id"], patch)
+            # 응답 정리
+            aggregated.append({
+                "note_id": r["note_id"],
+                "customer_id": cid,
+                "red_flag": bool(r["is_red_flag"]),
+                "matched_dislike": r.get("matched_dislike", ""),
+                "reason": r.get("reason", ""),
+            })
+
+    return {
+        "checked_at": checked_at,
+        "total": len(aggregated),
+        "flagged": sum(1 for r in aggregated if r["red_flag"]),
+        "missing": missing,
+        "skipped_customers": skipped_customers,
+        "results": aggregated,
+    }
 
 
 @app.post("/api/sales-notes/upload")

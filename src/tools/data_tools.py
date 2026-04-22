@@ -242,6 +242,24 @@ def add_sales_note(customer_id: str, note_data: dict) -> dict:
     return note_data
 
 
+def update_sales_note(note_id: str, patch: dict) -> dict | None:
+    """특정 note_id의 data JSON에 부분 패치(shallow merge) 적용 후 저장.
+    반환: 갱신된 data dict, 없으면 None."""
+    from db.database import SalesNote, flag_modified
+    if not note_id or not isinstance(patch, dict):
+        return None
+    with _session() as session:
+        row = session.query(SalesNote).filter_by(note_id=note_id).first()
+        if not row:
+            return None
+        merged = dict(row.data or {})
+        merged.update(patch)
+        row.data = merged
+        flag_modified(row, "data")
+        session.commit()
+        return merged
+
+
 def delete_sales_notes(note_ids: list[str]) -> dict:
     """영업 노트 일괄 삭제. 연관 페르소나/NBA/Activity/QC는 유지 (캐스케이드 없음).
     반환: {"deleted": N, "missing": [...]}"""
