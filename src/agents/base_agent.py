@@ -185,6 +185,21 @@ class BaseAgent:
                 kwargs["tools"] = openai_tools
 
             response = self._openrouter_create_with_retry(kwargs)
+            # OpenRouter는 업스트림 오류 시 HTTP 200 + {"error": {...}} 본문을 반환하므로
+            # choices가 None/빈값일 수 있음. OpenAI SDK는 이를 예외로 전환하지 않음.
+            if response is None or not getattr(response, "choices", None):
+                error_info = None
+                err = getattr(response, "error", None)
+                if err is not None:
+                    error_info = err if isinstance(err, dict) else getattr(err, "model_dump", lambda: str(err))()
+                elif response is not None and hasattr(response, "model_dump"):
+                    dumped = response.model_dump(exclude_none=True)
+                    error_info = dumped.get("error") or dumped
+                raise RuntimeError(
+                    f"OpenRouter 응답에 choices가 없습니다 (모델: {self.model}). "
+                    f"업스트림 오류로 추정됩니다 — 잠시 후 재시도하거나 다른 모델을 선택하세요. "
+                    f"details={error_info}"
+                )
             choice = response.choices[0]
             msg = choice.message
             finish_reason = choice.finish_reason
