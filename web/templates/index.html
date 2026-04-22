@@ -86,6 +86,9 @@
         <button class="nav-link active" data-tab="customers"><i class="bi bi-people me-1"></i>고객 대시보드</button>
       </li>
       <li class="nav-item">
+        <button class="nav-link" data-tab="customersAll"><i class="bi bi-table me-1"></i>고객 전체 조회</button>
+      </li>
+      <li class="nav-item">
         <button class="nav-link" data-tab="notes"><i class="bi bi-journal-text me-1"></i>세일즈 노트 전체 조회</button>
       </li>
       <li class="nav-item">
@@ -267,6 +270,74 @@
               <td class="text-muted"><i class="bi bi-chevron-right"></i></td>
             </tr>
             {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════ TAB: 고객 전체 조회 ═══════════════════ -->
+<div id="tab-customersAll" class="tab-pane" style="display:none">
+  <div class="container py-4 pb-5">
+    <div class="d-flex align-items-center mb-3">
+      <h4 class="fw-bold mb-0"><i class="bi bi-table me-2 text-primary"></i>고객 전체 조회</h4>
+      <span class="ms-3 badge bg-secondary" id="customersAllCount">로딩 중...</span>
+    </div>
+
+    <!-- 필터 바 -->
+    <div class="filter-bar">
+      <div class="row g-2 align-items-end">
+        <div class="col-md-4">
+          <input type="text" id="custSearch" class="form-control form-control-sm" placeholder="회사명 / 담당자 / 이메일 / ID 검색...">
+        </div>
+        <div class="col-md-2">
+          <select id="custTier" class="form-select form-select-sm">
+            <option value="">전체 등급</option>
+            <option value="S">S등급</option>
+            <option value="A">A등급</option>
+            <option value="B">B등급</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <select id="custType" class="form-select form-select-sm">
+            <option value="">전체 유형</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <select id="custSalesperson" class="form-select form-select-sm">
+            <option value="">전체 담당 영업</option>
+          </select>
+        </div>
+        <div class="col-auto">
+          <button class="btn btn-sm btn-primary" onclick="applyCustomersAllFilter()"><i class="bi bi-funnel me-1"></i>검색</button>
+          <button class="btn btn-sm btn-outline-secondary ms-1" onclick="resetCustomersAllFilter()"><i class="bi bi-x-lg"></i></button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 테이블 -->
+    <div class="card border-0 shadow-sm">
+      <div class="table-responsive">
+        <table class="table table-hover mb-0 data-table">
+          <thead class="table-dark">
+            <tr>
+              <th onclick="sortCustomersAll('tier')" style="cursor:pointer">등급 <i class="bi bi-arrow-down-up"></i></th>
+              <th onclick="sortCustomersAll('customer_id')" style="cursor:pointer">ID <i class="bi bi-arrow-down-up"></i></th>
+              <th onclick="sortCustomersAll('company_name')" style="cursor:pointer">회사명 <i class="bi bi-arrow-down-up"></i></th>
+              <th>유형</th>
+              <th onclick="sortCustomersAll('aum_billion_krw')" style="cursor:pointer">AUM <i class="bi bi-arrow-down-up"></i></th>
+              <th>담당자</th>
+              <th>이메일</th>
+              <th>투자 만데이트</th>
+              <th>BM</th>
+              <th onclick="sortCustomersAll('relationship_since')" style="cursor:pointer">거래 시작 <i class="bi bi-arrow-down-up"></i></th>
+              <th>담당 영업</th>
+              <th style="width:60px"></th>
+            </tr>
+          </thead>
+          <tbody id="customersAllTableBody">
+            <tr><td colspan="12" class="text-center py-4 text-muted">데이터 로딩 중...</td></tr>
           </tbody>
         </table>
       </div>
@@ -486,6 +557,22 @@
   </div>
 </div>
 
+<!-- ═══════════════════ 고객 상세 모달 ═══════════════════ -->
+<div class="modal fade" id="customerDetailModal" tabindex="-1">
+  <div class="modal-dialog modal-lg">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title"><i class="bi bi-building me-2"></i><span id="customerModalTitle">고객 상세</span></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body" id="customerModalBody"></div>
+      <div class="modal-footer">
+        <a id="customerDetailLink" href="#" class="btn btn-primary btn-sm"><i class="bi bi-arrow-right-circle me-1"></i>분석 페이지로 이동</a>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- ═══════════════════ 페르소나 상세 모달 ═══════════════════ -->
 <div class="modal fade" id="personaDetailModal" tabindex="-1">
   <div class="modal-dialog modal-xl">
@@ -505,7 +592,7 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 // ─── 탭 전환 ─────────────────────────────────────────────────────────────────
-const tabLoaded = { customers: true, notes: false, upload: false, personas: false };
+const tabLoaded = { customers: true, customersAll: false, notes: false, upload: false, personas: false };
 
 document.querySelectorAll('#mainTabs .nav-link').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -515,6 +602,7 @@ document.querySelectorAll('#mainTabs .nav-link').forEach(btn => {
     document.querySelectorAll('.tab-pane').forEach(p => p.style.display = 'none');
     document.getElementById('tab-' + tab).style.display = '';
     localStorage.setItem('activeTab', tab);
+    if (tab === 'customersAll' && !tabLoaded.customersAll) { loadAllCustomers(); tabLoaded.customersAll = true; }
     if (tab === 'notes' && !tabLoaded.notes) { loadAllNotes(); tabLoaded.notes = true; }
     if (tab === 'personas' && !tabLoaded.personas) { loadAllPersonas(); tabLoaded.personas = true; }
   });
@@ -572,6 +660,141 @@ modelSelect.addEventListener('change', async () => {
   updateBadge({ provider: data.provider });
 });
 loadModels();
+
+// ═══════════════════ 고객 전체 조회 ═══════════════════════════════════════════
+let allCustomers = [], filteredCustomers = [], customersSortDir = { key: 'tier', asc: true };
+
+async function loadAllCustomers() {
+  try {
+    const res = await fetch('/api/customers');
+    allCustomers = await res.json();
+    const types       = [...new Set(allCustomers.map(c => c.company_type).filter(Boolean))].sort();
+    const salespeople = [...new Set(allCustomers.map(c => c.assigned_salesperson).filter(Boolean))].sort();
+    fillSelect('custType',        types,       '전체 유형');
+    fillSelect('custSalesperson', salespeople, '전체 담당 영업');
+    filteredCustomers = [...allCustomers];
+    renderCustomersAllTable();
+  } catch (e) {
+    document.getElementById('customersAllTableBody').innerHTML =
+      `<tr><td colspan="12" class="text-center text-danger">로딩 실패: ${e.message}</td></tr>`;
+  }
+}
+
+function applyCustomersAllFilter() {
+  const search      = document.getElementById('custSearch').value.trim().toLowerCase();
+  const tier        = document.getElementById('custTier').value;
+  const type        = document.getElementById('custType').value;
+  const salesperson = document.getElementById('custSalesperson').value;
+  filteredCustomers = allCustomers.filter(c => {
+    if (tier        && c.tier !== tier) return false;
+    if (type        && c.company_type !== type) return false;
+    if (salesperson && c.assigned_salesperson !== salesperson) return false;
+    if (search) {
+      const contact = c.contact || {};
+      const hay = [c.customer_id, c.company_name, contact.name, contact.title, contact.email, contact.phone]
+        .join(' ').toLowerCase();
+      if (!hay.includes(search)) return false;
+    }
+    return true;
+  });
+  renderCustomersAllTable();
+}
+
+function resetCustomersAllFilter() {
+  ['custSearch','custTier','custType','custSalesperson'].forEach(id => document.getElementById(id).value = '');
+  filteredCustomers = [...allCustomers];
+  renderCustomersAllTable();
+}
+
+function sortCustomersAll(key) {
+  if (customersSortDir.key === key) customersSortDir.asc = !customersSortDir.asc;
+  else { customersSortDir.key = key; customersSortDir.asc = true; }
+  const { asc } = customersSortDir;
+  filteredCustomers.sort((a, b) => {
+    const va = a[key], vb = b[key];
+    if (typeof va === 'number' && typeof vb === 'number') return asc ? va - vb : vb - va;
+    return asc ? String(va ?? '').localeCompare(String(vb ?? '')) : String(vb ?? '').localeCompare(String(va ?? ''));
+  });
+  renderCustomersAllTable();
+}
+
+function fmtAum(v) {
+  if (v == null) return '—';
+  if (v >= 10000) return `${(v/10000).toFixed(0)}조원`;
+  return `${v.toLocaleString()}억원`;
+}
+
+function renderCustomersAllTable() {
+  document.getElementById('customersAllCount').textContent = `${filteredCustomers.length}명`;
+  const tbody = document.getElementById('customersAllTableBody');
+  if (!filteredCustomers.length) {
+    tbody.innerHTML = '<tr><td colspan="12" class="text-center py-4 text-muted">검색 결과가 없습니다.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = filteredCustomers.map((c, i) => {
+    const contact = c.contact || {};
+    const mandates = Array.isArray(c.investment_mandate) ? c.investment_mandate : [];
+    const mHtml = mandates.slice(0,2).map(m => `<span class="badge bg-light text-dark border me-1" style="font-size:.68rem">${escHtml(m)}</span>`).join('')
+      + (mandates.length > 2 ? `<span class="text-muted small">+${mandates.length-2}</span>` : '');
+    return `
+      <tr style="cursor:pointer" onclick="showCustomerDetail(${i})">
+        <td>${c.tier ? `<span class="tier-badge tier-${c.tier}">${c.tier}</span>` : '—'}</td>
+        <td class="small text-muted">${escHtml(c.customer_id || '—')}</td>
+        <td class="fw-semibold"><a href="/customer/${c.customer_id}" class="text-decoration-none" onclick="event.stopPropagation()">${escHtml(c.company_name || '—')}</a></td>
+        <td class="small text-muted">${escHtml(c.company_type || '—')}</td>
+        <td class="fw-bold text-primary small">${fmtAum(c.aum_billion_krw)}</td>
+        <td>
+          <div class="small fw-semibold">${escHtml(contact.name || '—')}</div>
+          <div class="text-muted" style="font-size:.72rem">${escHtml(contact.title || '')}</div>
+        </td>
+        <td class="small text-muted">${escHtml(contact.email || '—')}</td>
+        <td>${mHtml || '—'}</td>
+        <td class="small text-muted">${escHtml(c.benchmark || '—')}</td>
+        <td class="small text-muted text-nowrap">${escHtml(c.relationship_since || '—')}</td>
+        <td class="small">${escHtml(c.assigned_salesperson || '—')}</td>
+        <td><button class="btn btn-sm btn-outline-secondary py-0" onclick="event.stopPropagation();showCustomerDetail(${i})"><i class="bi bi-eye"></i></button></td>
+      </tr>`;
+  }).join('');
+}
+
+function showCustomerDetail(i) {
+  const c = filteredCustomers[i];
+  const contact = c.contact || {};
+  const mandates = Array.isArray(c.investment_mandate) ? c.investment_mandate : [];
+  document.getElementById('customerModalTitle').textContent = c.company_name || c.customer_id;
+  document.getElementById('customerDetailLink').href = `/customer/${c.customer_id}`;
+  document.getElementById('customerModalBody').innerHTML = `
+    <div class="d-flex gap-2 mb-3 flex-wrap">
+      ${c.tier ? `<span class="badge fs-6 tier-badge tier-${c.tier}">${c.tier}등급</span>` : ''}
+      <span class="badge bg-secondary">${escHtml(c.customer_id || '')}</span>
+      ${c.company_type ? `<span class="badge bg-info text-dark">${escHtml(c.company_type)}</span>` : ''}
+    </div>
+    <div class="row g-3">
+      <div class="col-md-6">
+        <table class="table table-sm table-bordered mb-0">
+          <tr><th class="table-light" style="width:35%">회사명</th><td>${escHtml(c.company_name || '—')}</td></tr>
+          <tr><th class="table-light">유형</th><td>${escHtml(c.company_type || '—')}</td></tr>
+          <tr><th class="table-light">AUM</th><td class="fw-bold text-primary">${fmtAum(c.aum_billion_krw)}</td></tr>
+          <tr><th class="table-light">Benchmark</th><td>${escHtml(c.benchmark || '—')}</td></tr>
+          <tr><th class="table-light">거래 시작</th><td>${escHtml(c.relationship_since || '—')}</td></tr>
+          <tr><th class="table-light">담당 영업</th><td>${escHtml(c.assigned_salesperson || '—')}</td></tr>
+        </table>
+      </div>
+      <div class="col-md-6">
+        <table class="table table-sm table-bordered mb-0">
+          <tr><th class="table-light" style="width:35%">담당자</th><td>${escHtml(contact.name || '—')}</td></tr>
+          <tr><th class="table-light">직함</th><td>${escHtml(contact.title || '—')}</td></tr>
+          <tr><th class="table-light">이메일</th><td>${escHtml(contact.email || '—')}</td></tr>
+          <tr><th class="table-light">전화</th><td>${escHtml(contact.phone || '—')}</td></tr>
+        </table>
+        <div class="mt-3">
+          <strong class="small text-muted d-block mb-2"><i class="bi bi-bookmark-star me-1"></i>투자 만데이트</strong>
+          ${mandates.length ? mandates.map(m => `<span class="badge bg-light text-dark border me-1 mb-1">${escHtml(m)}</span>`).join('') : '<span class="text-muted small">—</span>'}
+        </div>
+      </div>
+    </div>`;
+  new bootstrap.Modal(document.getElementById('customerDetailModal')).show();
+}
 
 // ═══════════════════ 세일즈 노트 ═════════════════════════════════════════════
 let allNotes = [], filteredNotes = [], notesSortKey = 'Activity_Date', notesSortAsc = false;
@@ -931,6 +1154,7 @@ function escHtml(s) {
 // Enter 키로 필터 적용
 document.getElementById('filterSearch').addEventListener('keydown', e => { if(e.key==='Enter') applyNotesFilter(); });
 document.getElementById('personaSearch').addEventListener('keydown', e => { if(e.key==='Enter') applyPersonaFilter(); });
+document.getElementById('custSearch').addEventListener('keydown', e => { if(e.key==='Enter') applyCustomersAllFilter(); });
 </script>
 </body>
 </html>
