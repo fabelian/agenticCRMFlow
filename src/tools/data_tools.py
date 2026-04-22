@@ -7,7 +7,21 @@ CRM 데이터 액세스 레이어
 import json
 import logging
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone, timedelta
+
+# ─── 타임스탬프 — 한국 표준시(KST, UTC+9) 고정 ─────────────────────────────
+# 한국은 DST가 없어 고정 오프셋으로 충분. zoneinfo/tzdata OS 의존성 회피.
+KST = timezone(timedelta(hours=9))
+
+
+def now_kst() -> datetime:
+    """현재 시각을 KST(UTC+9) aware datetime으로 반환."""
+    return datetime.now(KST)
+
+
+def now_kst_str(fmt: str = "%Y-%m-%d %H:%M") -> str:
+    """현재 KST 시각을 포맷 문자열로 반환 (기본: 분 단위 표시)."""
+    return now_kst().strftime(fmt)
 
 logger = logging.getLogger(__name__)
 
@@ -387,7 +401,7 @@ def get_pending_actions(customer_id: str) -> list:
 def save_persona(customer_id: str, persona: dict) -> None:
     from db.database import Persona, flag_modified
     persona["customer_id"] = customer_id
-    persona["updated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+    persona["updated_at"] = now_kst_str()
     with _session() as session:
         existing = session.query(Persona).filter_by(customer_id=customer_id).first()
         if existing:
@@ -422,7 +436,7 @@ def get_all_personas() -> list:
 def save_nba(customer_id: str, nba_data: dict) -> None:
     from db.database import NBAResult, flag_modified
     nba_data["customer_id"] = customer_id
-    nba_data["generated_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+    nba_data["generated_at"] = now_kst_str()
     with _session() as session:
         existing = session.query(NBAResult).filter_by(customer_id=customer_id).first()
         if existing:
@@ -450,7 +464,7 @@ def save_activities(customer_id: str, activities: list) -> None:
     from db.database import ActivitySchedule, flag_modified
     envelope = {
         "activities": activities,
-        "updated_at": datetime.now().strftime("%Y-%m-%d %H:%M"),
+        "updated_at": now_kst_str(),
     }
     with _session() as session:
         existing = session.query(ActivitySchedule).filter_by(customer_id=customer_id).first()
@@ -499,7 +513,7 @@ def get_activities_updated_at(customer_id: str) -> str | None:
 def save_qc_report(customer_id: str, report: dict) -> None:
     from db.database import QCReport, flag_modified
     report["customer_id"] = customer_id
-    report["reviewed_at"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+    report["reviewed_at"] = now_kst_str()
     with _session() as session:
         existing = session.query(QCReport).filter_by(customer_id=customer_id).first()
         if existing:

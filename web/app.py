@@ -547,7 +547,6 @@ async def api_check_dislikes(body: DislikeCheckRequest):
     """선택된 세일즈 노트들의 Action_Point가 해당 고객 페르소나의 explicit_dislikes에
     해당하는지 DislikeCheckerAgent로 판정하고, 결과를 각 노트에 영속화한다.
     고객별로 그룹화해 에이전트를 1회씩 실행 (호출 비용 최소화)."""
-    from datetime import datetime as _dt
     from fastapi import HTTPException
 
     ids = [nid for nid in body.note_ids if nid]
@@ -585,7 +584,7 @@ async def api_check_dislikes(body: DislikeCheckRequest):
 
     aggregated: list[dict] = []
     skipped_customers: list[dict] = []
-    checked_at = _dt.now().strftime("%Y-%m-%d %H:%M")
+    checked_at = dt.now_kst_str()
 
     # 4) 고객별로 에이전트 실행
     for cid, notes in groups.items():
@@ -861,8 +860,7 @@ async def api_analyze(customer_id: str):
 
                 if msg is None:
                     # 파이프라인 완료
-                    from datetime import datetime as _dt
-                    _ts = _dt.now().strftime("%Y-%m-%d %H:%M:%S")
+                    _ts = dt.now_kst_str("%Y-%m-%d %H:%M:%S")
                     yield f'data: {json.dumps({"type": "done", "completed_at": _ts})}\n\n'
                     break
 
@@ -920,8 +918,7 @@ def _agent_sse(customer_id: str, agent_type: str, since_date: str = None):
                     yield ": heartbeat\n\n"
                     continue
                 if msg is None:
-                    from datetime import datetime as _dt
-                    ts = _dt.now().strftime("%Y-%m-%d %H:%M:%S")
+                    ts = dt.now_kst_str("%Y-%m-%d %H:%M:%S")
                     yield f'data: {json.dumps({"type": "done", "completed_at": ts})}\n\n'
                     break
                 if isinstance(msg, str) and msg.startswith("[ERROR]"):

@@ -7,7 +7,6 @@ NBA 추천을 구체적인 Activity로 변환·저장.
 """
 
 import sys
-from datetime import datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -118,7 +117,7 @@ class ActivityAgent(BaseAgent):
                 "nba": dt.get_nba(cid),
                 "existing_action_plans": dt.get_action_plans(cid),
                 "pending_actions": dt.get_pending_actions(cid),
-                "analysis_date": datetime.now().strftime("%Y-%m-%d"),
+                "analysis_date": dt.now_kst_str("%Y-%m-%d"),
             }
 
         if tool_name == "save_activity_schedule":
@@ -132,7 +131,7 @@ class ActivityAgent(BaseAgent):
         return {"error": f"알 수 없는 도구: {tool_name}"}
 
     def run(self, customer_id: str) -> str:
-        analysis_date = datetime.now().strftime("%Y-%m-%d")
+        analysis_date = dt.now_kst_str("%Y-%m-%d")
         prompt = f"""고객 ID {customer_id}의 Activity 일정을 생성해주세요.
 분석일: {analysis_date}
 

@@ -188,8 +188,7 @@ class OrchestratorAgent(BaseAgent):
         # 최종 결과를 파일로도 저장
         output_dir = Path(__file__).parent.parent.parent / "output"
         output_dir.mkdir(exist_ok=True)
-        from datetime import datetime
-        ts = datetime.now().strftime("%Y%m%d_%H%M")
+        ts = dt.now_kst_str("%Y%m%d_%H%M")
         out_path = output_dir / f"orchestrator_{customer_id}_{ts}.md"
         with open(out_path, "w", encoding="utf-8") as f:
             f.write(f"# CRM 멀티에이전트 분석 결과\n")
