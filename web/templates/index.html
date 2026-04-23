@@ -585,6 +585,12 @@
           <button class="btn btn-sm btn-outline-secondary ms-1" onclick="resetPersonaFilter()"><i class="bi bi-x-lg"></i></button>
         </div>
       </div>
+      <div class="row g-1 mt-2">
+        <div class="col-12 small">
+          <span class="text-muted fw-semibold me-2"><i class="bi bi-columns-gap me-1"></i>테이블 컬럼 (최대 3개)</span>
+          <div id="personaKeyCheckboxes" class="d-inline-flex flex-wrap gap-2 align-items-center"></div>
+        </div>
+      </div>
     </div>
 
     <!-- 페르소나 테이블 뷰 -->
@@ -592,18 +598,10 @@
       <div class="table-responsive">
         <table class="table table-hover mb-0 data-table">
           <thead class="table-dark">
-            <tr>
-              <th>등급</th>
-              <th onclick="sortPersonas('_company_name')" style="cursor:pointer">고객사 <i class="bi bi-arrow-down-up"></i></th>
-              <th>선호 섹터</th>
-              <th>선호 콘텐츠</th>
-              <th>분석 스타일</th>
-              <th onclick="sortPersonas('updated_at')" style="cursor:pointer">업데이트 <i class="bi bi-arrow-down-up"></i></th>
-              <th style="width:60px"></th>
-            </tr>
+            <tr id="personasTableHeaderRow"></tr>
           </thead>
           <tbody id="personasTableBody">
-            <tr><td colspan="7" class="text-center py-4 text-muted">데이터 로딩 중...</td></tr>
+            <tr><td class="text-center py-4 text-muted">데이터 로딩 중...</td></tr>
           </tbody>
         </table>
       </div>
@@ -1741,28 +1739,162 @@ function getPersonaField(p, ...keys) {
   return '—';
 }
 
+// ─── 페르소나 테이블 — 동적 컬럼 선택기 ───────────────────────────────────
+const PERSONA_KEY_LABELS = {
+  explicit_dislikes:         '명시적 불만/거부',
+  communication_preferences: '커뮤니케이션 선호',
+  preferred_content_types:   '선호 콘텐츠 유형',
+  preferred_sectors:         '선호 섹터',
+  disliked_sectors:          '기피 섹터',
+  disliked_content_types:    '기피 콘텐츠 유형',
+  preferred_analysis_style:  '선호 분석 스타일',
+  key_requirements:          '핵심 요구사항',
+};
+const PERSONA_KEY_ORDER = [
+  'explicit_dislikes', 'communication_preferences', 'preferred_content_types',
+  'preferred_sectors', 'disliked_sectors', 'disliked_content_types',
+  'preferred_analysis_style', 'key_requirements',
+];
+const PERSONA_KEY_DEFAULT = ['explicit_dislikes', 'communication_preferences', 'preferred_content_types'];
+const PERSONA_KEY_MAX = 3;
+
+let selectedPersonaKeys = (() => {
+  try {
+    const saved = JSON.parse(localStorage.getItem('personaTableKeys') || '[]');
+    const valid = Array.isArray(saved) ? saved.filter(k => PERSONA_KEY_LABELS[k]) : [];
+    return valid.length ? valid.slice(0, PERSONA_KEY_MAX) : [...PERSONA_KEY_DEFAULT];
+  } catch { return [...PERSONA_KEY_DEFAULT]; }
+})();
+
+function savePersonaKeys() {
+  localStorage.setItem('personaTableKeys', JSON.stringify(selectedPersonaKeys));
+}
+
+function renderPersonaKeyCheckboxes() {
+  const container = document.getElementById('personaKeyCheckboxes');
+  if (!container) return;
+  const reached = selectedPersonaKeys.length >= PERSONA_KEY_MAX;
+  container.innerHTML = PERSONA_KEY_ORDER.map(k => {
+    const checked = selectedPersonaKeys.includes(k);
+    const disabled = !checked && reached;
+    return `
+      <label class="form-check form-check-inline mb-0" ${disabled ? 'style="opacity:.4"' : ''}>
+        <input type="checkbox" class="form-check-input" ${checked ? 'checked' : ''} ${disabled ? 'disabled' : ''}
+               onchange="togglePersonaKey('${k}', this.checked)">
+        <span class="form-check-label small">${PERSONA_KEY_LABELS[k]}</span>
+      </label>`;
+  }).join('') + `<span class="text-muted small ms-2">${selectedPersonaKeys.length}/${PERSONA_KEY_MAX}</span>`;
+}
+
+function togglePersonaKey(key, on) {
+  if (on) {
+    if (selectedPersonaKeys.length >= PERSONA_KEY_MAX) return;
+    if (!selectedPersonaKeys.includes(key)) selectedPersonaKeys.push(key);
+  } else {
+    selectedPersonaKeys = selectedPersonaKeys.filter(k => k !== key);
+    if (!selectedPersonaKeys.length) selectedPersonaKeys = [...PERSONA_KEY_DEFAULT]; // 전부 해제 방지
+  }
+  savePersonaKeys();
+  renderPersonaKeyCheckboxes();
+  renderPersonasTable();
+}
+
+function formatPersonaCellText(key, v) {
+  if (v == null || v === '' || (Array.isArray(v) && !v.length)) return '—';
+
+  // 딕셔너리 필드
+  if (key === 'communication_preferences' && typeof v === 'object' && !Array.isArray(v)) {
+    const parts = [];
+    if (v.channel || v.preferred_channel) parts.push(`채널: ${v.channel || v.preferred_channel}`);
+    if (v.frequency || v.contact_cadence) parts.push(`주기: ${v.frequency || v.contact_cadence}`);
+    if (v.format) parts.push(`포맷: ${v.format}`);
+    return parts.length ? parts.join(' / ') : '—';
+  }
+  if (key === 'preferred_analysis_style' && typeof v === 'object' && !Array.isArray(v)) {
+    const style = v.style || '';
+    const detail = v.detail_level ? ` (${v.detail_level})` : '';
+    return style ? style + detail : (v.rationale || '—');
+  }
+
+  // 배열 필드
+  if (Array.isArray(v)) {
+    const extract = (item) => {
+      if (typeof item === 'string') return item;
+      if (item && typeof item === 'object') {
+        return item.sector || item.type || item.description || item.name || item.title
+          || (item.reason ? String(item.reason) : JSON.stringify(item));
+      }
+      return String(item);
+    };
+    const items = v.map(extract).filter(Boolean);
+    if (!items.length) return '—';
+    const head = items.slice(0, 3).join(', ');
+    const tail = items.length > 3 ? ` (+${items.length - 3})` : '';
+    return head + tail;
+  }
+
+  // 스칼라
+  if (typeof v === 'object') return JSON.stringify(v);
+  return String(v);
+}
+
+function formatPersonaCellFull(key, v) {
+  // 툴팁용 전체 내용
+  if (v == null) return '';
+  if (Array.isArray(v)) {
+    return v.map(item => {
+      if (typeof item === 'string') return '• ' + item;
+      if (item && typeof item === 'object') {
+        const label = item.sector || item.type || item.description || item.name || '';
+        const reason = item.reason ? ` — ${item.reason}` : '';
+        return '• ' + (label ? label + reason : JSON.stringify(item));
+      }
+      return '• ' + String(item);
+    }).join('\n');
+  }
+  if (typeof v === 'object') return JSON.stringify(v, null, 2);
+  return String(v);
+}
+
 function renderPersonasTable() {
+  renderPersonaKeyCheckboxes();
   document.getElementById('personasCount').textContent = `${filteredPersonas.length}명`;
+
+  // 헤더 동적 생성
+  const headerRow = document.getElementById('personasTableHeaderRow');
+  if (headerRow) {
+    const dynamicHeaders = selectedPersonaKeys.map(k =>
+      `<th>${escHtml(PERSONA_KEY_LABELS[k])}</th>`
+    ).join('');
+    headerRow.innerHTML = `
+      <th>등급</th>
+      <th onclick="sortPersonas('_company_name')" style="cursor:pointer">고객사 <i class="bi bi-arrow-down-up"></i></th>
+      ${dynamicHeaders}
+      <th onclick="sortPersonas('updated_at')" style="cursor:pointer">업데이트 <i class="bi bi-arrow-down-up"></i></th>
+      <th style="width:60px"></th>`;
+  }
+
+  const totalCols = 3 + selectedPersonaKeys.length + 1; // 등급 + 고객사 + 동적 + 업데이트 + 액션
   const tbody = document.getElementById('personasTableBody');
   if (!filteredPersonas.length) {
-    tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted">데이터가 없습니다.</td></tr>';
+    tbody.innerHTML = `<tr><td colspan="${totalCols}" class="text-center py-4 text-muted">데이터가 없습니다.</td></tr>`;
     renderPersonasDetailView();
     return;
   }
   tbody.innerHTML = filteredPersonas.map((p, i) => {
     const tier = p._tier || '';
-    const sectors = getPersonaField(p, 'preferred_sectors', 'preferred_sector', 'sectors');
-    const content = getPersonaField(p, 'preferred_content_types', 'content_preference', 'content_types');
-    const style   = getPersonaField(p, 'analysis_style', 'preferred_analysis_style', 'investment_style');
     const updated = p.updated_at || '—';
+    const dynamicCells = selectedPersonaKeys.map(k => {
+      const short = formatPersonaCellText(k, p[k]);
+      const full  = formatPersonaCellFull(k, p[k]);
+      return `<td class="small text-truncate-cell" title="${escHtml(full)}">${escHtml(short)}</td>`;
+    }).join('');
     return `
       <tr style="cursor:pointer" onclick="showPersonaDetail(${i})">
         <td>${tier ? `<span class="tier-badge tier-${tier}">${tier}</span>` : '—'}</td>
-        <td class="fw-semibold"><a href="/customer/${p.customer_id}" class="text-decoration-none" onclick="event.stopPropagation()">${p._company_name || p.customer_id}</a></td>
-        <td class="small text-truncate-cell">${sectors}</td>
-        <td class="small text-truncate-cell">${content}</td>
-        <td class="small text-truncate-cell">${style}</td>
-        <td class="small text-muted text-nowrap">${updated}</td>
+        <td class="fw-semibold"><a href="/customer/${p.customer_id}" class="text-decoration-none" onclick="event.stopPropagation()">${escHtml(p._company_name || p.customer_id)}</a></td>
+        ${dynamicCells}
+        <td class="small text-muted text-nowrap">${escHtml(updated)}</td>
         <td><button class="btn btn-sm btn-outline-secondary py-0" onclick="event.stopPropagation();showPersonaDetail(${i})"><i class="bi bi-eye"></i></button></td>
       </tr>`;
   }).join('');
