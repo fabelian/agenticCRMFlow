@@ -306,6 +306,7 @@ agenticCRM/
 | Claude Sonnet 4.6 | Anthropic | 빠른 속도 · 낮은 비용 |
 | Gemma 4 26B | OpenRouter (무료) | rate limit 있음 |
 | GPT-OSS 120B | OpenRouter (무료) | rate limit 있음 |
+| GLM 4.5 Air | OpenRouter (무료) | rate limit 있음 |
 | MiniMax M2.5 | OpenRouter (무료) | rate limit 있음 |
 
 ---

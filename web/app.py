@@ -160,6 +160,11 @@ MODEL_REGISTRY: dict[str, dict] = {
         "provider": "openrouter",
         "description": "OpenRouter 무료 — rate limit 있음",
     },
+    "z-ai/glm-4.5-air:free": {
+        "label": "GLM 4.5 Air (무료)",
+        "provider": "openrouter",
+        "description": "OpenRouter 무료 — rate limit 있음",
+    },
     "minimax/minimax-m2.5:free": {
         "label": "MiniMax M2.5 (무료)",
         "provider": "openrouter",
