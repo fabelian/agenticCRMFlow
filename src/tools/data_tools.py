@@ -457,6 +457,15 @@ def get_nba(customer_id: str) -> dict | None:
         return None
 
 
+def get_all_nba() -> list:
+    try:
+        from db.database import NBAResult
+        with _session() as session:
+            return [row.data for row in session.query(NBAResult).all()]
+    except Exception:
+        return []
+
+
 # ─── 활동 일정 관리 (DB) ──────────────────────────────────────────────────────
 
 def save_activities(customer_id: str, activities: list) -> None:

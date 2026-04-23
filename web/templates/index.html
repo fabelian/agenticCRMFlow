@@ -128,6 +128,9 @@
       <li class="nav-item">
         <button class="nav-link" data-tab="personas"><i class="bi bi-person-badge me-1"></i>페르소나</button>
       </li>
+      <li class="nav-item">
+        <button class="nav-link" data-tab="nba"><i class="bi bi-lightbulb me-1"></i>전체 NBA 추천</button>
+      </li>
     </ul>
   </div>
 </div>
@@ -177,6 +180,15 @@
         <button class="btn btn-sm btn-primary" id="btnBulkPersona" onclick="startBulkPersonaUpdate()">
           <i class="bi bi-person-badge me-1"></i>전체 페르소나 업데이트
         </button>
+        <div class="form-check form-check-inline me-0"
+          title="체크 시 모든 NBA를 전체 노트로 다시 생성합니다. 체크하지 않으면 마지막 분석 이후 추가된 노트만 반영됩니다.">
+          <input class="form-check-input" type="checkbox" id="bulkNbaForce">
+          <label class="form-check-label small" for="bulkNbaForce">강제 재생성</label>
+          <i class="bi bi-info-circle text-muted small ms-1"></i>
+        </div>
+        <button class="btn btn-sm btn-warning" id="btnBulkNba" onclick="startBulkNbaUpdate()">
+          <i class="bi bi-lightbulb me-1"></i>전체 NBA 추천
+        </button>
         <div class="btn-group btn-group-sm">
           <button class="btn btn-outline-secondary view-btn active" id="btnCard" onclick="setView('card')">
             <i class="bi bi-grid-3x3-gap me-1"></i>카드
@@ -200,6 +212,21 @@
           <div id="bulkProgressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-primary" role="progressbar" style="width:0%"></div>
         </div>
         <div id="bulkProgressList" class="small" style="max-height:260px;overflow-y:auto;border:1px solid #e9ecef;border-radius:6px"></div>
+      </div>
+    </div>
+
+    <!-- 전체 NBA 추천 진행 패널 -->
+    <div id="bulkNbaPanel" class="card shadow-sm mb-3" style="display:none">
+      <div class="card-body p-3">
+        <div class="d-flex align-items-center mb-2">
+          <strong class="small"><i class="bi bi-lightbulb me-1 text-warning"></i>전체 NBA 추천 진행 상황</strong>
+          <span class="ms-2 badge bg-secondary" id="bulkNbaProgressText">0 / 0</span>
+          <button class="btn btn-sm btn-link ms-auto py-0" onclick="toggleBulkNbaPanel()"><i class="bi bi-chevron-up"></i>접기</button>
+        </div>
+        <div class="progress mb-2" style="height:8px">
+          <div id="bulkNbaProgressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-warning" role="progressbar" style="width:0%"></div>
+        </div>
+        <div id="bulkNbaProgressList" class="small" style="max-height:260px;overflow-y:auto;border:1px solid #e9ecef;border-radius:6px"></div>
       </div>
     </div>
 
@@ -638,6 +665,50 @@
   </div>
 </div>
 
+<!-- ═══════════════════ TAB: 전체 NBA 추천 ═══════════════════ -->
+<div id="tab-nba" class="tab-pane" style="display:none">
+  <div class="container py-4 pb-5">
+    <div class="d-flex align-items-center mb-3 flex-wrap gap-2">
+      <h4 class="fw-bold mb-0"><i class="bi bi-lightbulb me-2 text-warning"></i>전체 NBA 추천</h4>
+      <span class="badge bg-secondary" id="nbaAllCount">로딩 중...</span>
+      <button class="btn btn-sm btn-outline-secondary ms-auto" onclick="loadAllNba(true)">
+        <i class="bi bi-arrow-clockwise me-1"></i>새로고침
+      </button>
+    </div>
+
+    <!-- 필터 바 -->
+    <div class="filter-bar mb-3 p-2 bg-light rounded border">
+      <div class="row g-2 align-items-end">
+        <div class="col-md-4">
+          <input type="text" id="nbaSearch" class="form-control form-control-sm" placeholder="고객사명 또는 내용 검색..." oninput="renderAllNba()">
+        </div>
+        <div class="col-md-2">
+          <select id="nbaTierFilter" class="form-select form-select-sm" onchange="renderAllNba()">
+            <option value="">전체 등급</option>
+            <option value="S">S등급</option>
+            <option value="A">A등급</option>
+            <option value="B">B등급</option>
+          </select>
+        </div>
+        <div class="col-md-2">
+          <select id="nbaRiskFilter" class="form-select form-select-sm" onchange="renderAllNba()">
+            <option value="">전체 위험도</option>
+            <option value="high">high</option>
+            <option value="medium">medium</option>
+            <option value="low">low</option>
+          </select>
+        </div>
+        <div class="col-auto">
+          <button class="btn btn-sm btn-outline-secondary" onclick="resetNbaFilter()"><i class="bi bi-x-lg me-1"></i>초기화</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 카드 스택 -->
+    <div id="nbaAllList"></div>
+  </div>
+</div>
+
 <!-- ═══════════════════ 노트 상세 모달 ═══════════════════ -->
 <div class="modal fade" id="noteDetailModal" tabindex="-1">
   <div class="modal-dialog modal-lg">
@@ -927,7 +998,7 @@
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 <script>
 // ─── 탭 전환 ─────────────────────────────────────────────────────────────────
-const tabLoaded = { customers: true, customersAll: false, notes: false, upload: false, personas: false };
+const tabLoaded = { customers: true, customersAll: false, notes: false, upload: false, personas: false, nba: false };
 
 document.querySelectorAll('#mainTabs .nav-link').forEach(btn => {
   btn.addEventListener('click', () => {
@@ -940,6 +1011,7 @@ document.querySelectorAll('#mainTabs .nav-link').forEach(btn => {
     if (tab === 'customersAll' && !tabLoaded.customersAll) { loadAllCustomers(); tabLoaded.customersAll = true; }
     if (tab === 'notes' && !tabLoaded.notes) { loadAllNotes(); tabLoaded.notes = true; }
     if (tab === 'personas' && !tabLoaded.personas) { loadAllPersonas(); tabLoaded.personas = true; }
+    if (tab === 'nba' && !tabLoaded.nba) { loadAllNba(); tabLoaded.nba = true; }
   });
 });
 
@@ -1030,6 +1102,236 @@ function startBulkPersonaUpdate() {
 function toggleBulkPersonaPanel() {
   const p = document.getElementById('bulkPersonaPanel');
   p.style.display = (p.style.display === 'none' || !p.style.display) ? '' : 'none';
+}
+
+// ─── 전체 NBA 추천 일괄 업데이트 ─────────────────────────────────────────────
+function startBulkNbaUpdate() {
+  const btn = document.getElementById('btnBulkNba');
+  const panel = document.getElementById('bulkNbaPanel');
+  const bar = document.getElementById('bulkNbaProgressBar');
+  const text = document.getElementById('bulkNbaProgressText');
+  const list = document.getElementById('bulkNbaProgressList');
+
+  const forceEl = document.getElementById('bulkNbaForce');
+  const force = !!(forceEl && forceEl.checked);
+  const modeMsg = force
+    ? '⚠️ 강제 재생성 모드: 모든 고객의 NBA를 전체 노트로 다시 생성합니다. Opus 호출 비용이 많이 들 수 있습니다.'
+    : '증분 모드: 각 고객의 마지막 NBA 생성 이후 추가된 노트만 반영합니다.';
+  if (!confirm(`${modeMsg}\n\n※ 페르소나가 없는 고객은 자동 스킵됩니다. 계속하시겠습니까?`)) return;
+
+  btn.disabled = true;
+  const origHtml = btn.innerHTML;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>실행 중...';
+  panel.style.display = '';
+  bar.style.width = '0%';
+  bar.classList.remove('bg-success', 'bg-danger');
+  bar.classList.add('bg-warning', 'progress-bar-animated');
+  text.textContent = '0 / 0';
+  list.innerHTML = '';
+
+  const lineById = {};
+  const es = new EventSource('/api/run/nba-all' + (force ? '?force=true' : ''));
+
+  es.onmessage = (e) => {
+    let d;
+    try { d = JSON.parse(e.data); } catch { return; }
+    if (d.type === 'progress') {
+      const pct = d.total ? (d.index / d.total) * 100 : 0;
+      bar.style.width = `${pct}%`;
+      text.textContent = `${d.index} / ${d.total}`;
+      const key = d.customer_id;
+      if (!lineById[key]) {
+        const row = document.createElement('div');
+        row.className = 'd-flex align-items-center py-1 px-2 border-bottom';
+        row.innerHTML = `
+          <span class="badge bg-secondary me-2">${d.index}/${d.total}</span>
+          <span class="fw-semibold me-2">${escHtml(d.company_name || d.customer_id)}</span>
+          <span class="text-muted small me-2">${escHtml(d.customer_id)}</span>
+          <span class="ms-auto small" data-role="status">⏳ 분석 중...</span>`;
+        list.appendChild(row);
+        lineById[key] = row;
+        list.scrollTop = list.scrollHeight;
+      }
+      const statusEl = lineById[key].querySelector('[data-role=status]');
+      if (d.status === 'started')
+        statusEl.innerHTML = '<span class="text-muted">⏳ 분석 중...</span>';
+      else if (d.status === 'done')
+        statusEl.innerHTML = '<span class="text-success">✅ 완료</span>';
+      else if (d.status === 'skipped')
+        statusEl.innerHTML = `<span class="text-muted">⏭️ 스킵 — ${escHtml(d.error || '페르소나 미생성')}</span>`;
+      else if (d.status === 'error')
+        statusEl.innerHTML = `<span class="text-danger">❌ ${escHtml(d.error || '오류')}</span>`;
+    } else if (d.type === 'done') {
+      bar.classList.remove('bg-warning', 'progress-bar-animated');
+      bar.classList.add((d.failed || 0) ? 'bg-danger' : 'bg-success');
+      const parts = [`${d.total} / ${d.total}`, `<span class="text-success">성공 ${d.succeeded}</span>`];
+      if (d.failed) parts.push(`<span class="text-danger">실패 ${d.failed}</span>`);
+      if (d.skipped) parts.push(`<span class="text-muted">스킵 ${d.skipped}</span>`);
+      parts.push(`<span class="text-muted small">${escHtml(d.completed_at || '')}</span>`);
+      text.innerHTML = parts.join(' · ');
+      es.close();
+      btn.disabled = false;
+      btn.innerHTML = origHtml;
+      // NBA 탭 캐시 무효화 → 다음 진입 시 새로고침
+      tabLoaded.nba = false;
+    } else if (d.type === 'error') {
+      alert(`오류: ${d.text || '알 수 없는 오류'}`);
+      es.close();
+      btn.disabled = false;
+      btn.innerHTML = origHtml;
+    }
+  };
+
+  es.onerror = () => {
+    es.close();
+    btn.disabled = false;
+    btn.innerHTML = origHtml;
+    bar.classList.remove('progress-bar-animated');
+  };
+}
+
+function toggleBulkNbaPanel() {
+  const p = document.getElementById('bulkNbaPanel');
+  p.style.display = (p.style.display === 'none' || !p.style.display) ? '' : 'none';
+}
+
+// ─── 전체 NBA 조회 탭 ────────────────────────────────────────────────────────
+let _allNbaCache = [];
+
+async function loadAllNba(forceRefresh) {
+  const listEl = document.getElementById('nbaAllList');
+  const countEl = document.getElementById('nbaAllCount');
+  listEl.innerHTML = '<div class="text-center py-5 text-muted"><span class="spinner-border spinner-border-sm me-2"></span>로딩 중...</div>';
+  countEl.textContent = '로딩 중...';
+  try {
+    const res = await fetch('/api/all-nba' + (forceRefresh ? ('?_=' + Date.now()) : ''));
+    if (!res.ok) throw new Error('HTTP ' + res.status);
+    _allNbaCache = await res.json();
+    renderAllNba();
+  } catch (exc) {
+    listEl.innerHTML = `<div class="alert alert-danger">NBA 로딩 실패: ${escHtml(String(exc))}</div>`;
+    countEl.textContent = '오류';
+  }
+}
+
+function resetNbaFilter() {
+  document.getElementById('nbaSearch').value = '';
+  document.getElementById('nbaTierFilter').value = '';
+  document.getElementById('nbaRiskFilter').value = '';
+  renderAllNba();
+}
+
+function renderAllNba() {
+  const listEl = document.getElementById('nbaAllList');
+  const countEl = document.getElementById('nbaAllCount');
+  const q = (document.getElementById('nbaSearch').value || '').trim().toLowerCase();
+  const tier = document.getElementById('nbaTierFilter').value;
+  const risk = document.getElementById('nbaRiskFilter').value;
+
+  const filtered = _allNbaCache.filter(n => {
+    if (tier && (n._tier || '') !== tier) return false;
+    if (risk && (n.risk_level || '') !== risk) return false;
+    if (q) {
+      const blob = JSON.stringify(n).toLowerCase();
+      if (!blob.includes(q)) return false;
+    }
+    return true;
+  });
+
+  countEl.textContent = `${filtered.length}건 / 총 ${_allNbaCache.length}건`;
+
+  if (filtered.length === 0) {
+    listEl.innerHTML = '<div class="text-center py-5 text-muted"><i class="bi bi-inbox fs-1 d-block mb-2"></i>표시할 NBA 추천이 없습니다.</div>';
+    return;
+  }
+
+  listEl.innerHTML = filtered.map(n => renderNbaCard(n)).join('');
+}
+
+function renderNbaCard(n) {
+  const cid = n.customer_id || '';
+  const name = n._company_name || cid;
+  const tier = n._tier || '';
+  const risk = n.risk_level || '';
+  const riskClass = risk === 'high' ? 'bg-danger' : risk === 'medium' ? 'bg-warning text-dark' : risk === 'low' ? 'bg-success' : 'bg-secondary';
+  const analysisDate = n.analysis_date || '';
+  const generatedAt = n.generated_at || '';
+  const summary = n.summary || '';
+  const actions = Array.isArray(n.actions) ? [...n.actions].sort((a, b) => (a.rank || 999) - (b.rank || 999)) : [];
+  const refs = Array.isArray(n.reference_notes) ? n.reference_notes : [];
+  const avoids = Array.isArray(n.avoid_actions) ? n.avoid_actions : [];
+  const outcomes = n.expected_outcomes || '';
+  const cmp = n.top_priority_comparison || {};
+
+  const actionRows = actions.map(a => `
+    <tr>
+      <td class="text-center fw-bold">${escHtml(String(a.rank ?? ''))}</td>
+      <td>
+        <div class="fw-semibold">${escHtml(a.title || '')}</div>
+        ${a.rationale ? `<div class="text-muted small mt-1">${escHtml(a.rationale)}</div>` : ''}
+        ${a.how_to ? `<div class="small mt-1"><span class="text-muted">실행:</span> ${escHtml(a.how_to)}</div>` : ''}
+        ${a.expected_reaction ? `<div class="small mt-1"><span class="text-muted">예상 반응:</span> ${escHtml(a.expected_reaction)}</div>` : ''}
+        ${a.success_metric ? `<div class="small mt-1"><span class="text-muted">성공 지표:</span> ${escHtml(a.success_metric)}</div>` : ''}
+      </td>
+      <td class="text-nowrap"><span class="badge bg-primary-subtle text-primary-emphasis">${escHtml(a.deadline || '')}</span></td>
+      <td class="small text-muted">${(a.related_note_ids || []).map(escHtml).join(', ')}</td>
+    </tr>
+  `).join('');
+
+  return `
+    <div class="card shadow-sm mb-3">
+      <div class="card-header bg-light d-flex align-items-center flex-wrap gap-2">
+        <span class="tier-badge tier-${escHtml(tier)}">${escHtml(tier)}</span>
+        <strong class="ms-2">${escHtml(name)}</strong>
+        <span class="text-muted small">${escHtml(cid)}</span>
+        ${risk ? `<span class="badge ${riskClass} ms-2">위험도: ${escHtml(risk)}</span>` : ''}
+        <span class="ms-auto small text-muted">
+          ${analysisDate ? `분석일 ${escHtml(analysisDate)}` : ''}
+          ${generatedAt ? ` · 생성 ${escHtml(generatedAt)}` : ''}
+        </span>
+        <a href="/customer/${escHtml(cid)}" class="btn btn-sm btn-outline-primary ms-2"><i class="bi bi-box-arrow-up-right me-1"></i>상세</a>
+      </div>
+      <div class="card-body">
+        ${summary ? `<p class="mb-3"><strong class="small text-muted d-block mb-1">요약</strong>${escHtml(summary)}</p>` : ''}
+        ${cmp.note_id ? `
+          <div class="alert alert-info py-2 small mb-3">
+            <div><strong>최우선 액션 vs 최근 노트</strong></div>
+            <div class="mt-1"><span class="text-muted">노트(${escHtml(cmp.note_id)}, ${escHtml(cmp.activity_date || '')}):</span> ${escHtml(cmp.action_point_from_note || '')}</div>
+            <div><span class="text-muted">NBA 최우선:</span> ${escHtml(cmp.nba_top_priority_action || '')}</div>
+            ${cmp.rationale ? `<div class="text-muted mt-1">근거: ${escHtml(cmp.rationale)}</div>` : ''}
+          </div>
+        ` : ''}
+        ${actions.length ? `
+          <div class="mb-3">
+            <strong class="small text-muted d-block mb-1">추천 액션 (우선순위 순)</strong>
+            <div class="table-responsive">
+              <table class="table table-sm table-bordered mb-0 data-table">
+                <thead class="table-light">
+                  <tr>
+                    <th style="width:40px">#</th>
+                    <th>액션 / 근거</th>
+                    <th style="width:130px">기한</th>
+                    <th style="width:130px">관련 노트</th>
+                  </tr>
+                </thead>
+                <tbody>${actionRows}</tbody>
+              </table>
+            </div>
+          </div>
+        ` : ''}
+        ${avoids.length ? `
+          <div class="mb-3">
+            <strong class="small text-muted d-block mb-1"><i class="bi bi-exclamation-triangle text-danger me-1"></i>절대 피할 것</strong>
+            <ul class="mb-0 small">${avoids.map(a => `<li>${escHtml(typeof a === 'string' ? a : JSON.stringify(a))}</li>`).join('')}</ul>
+          </div>
+        ` : ''}
+        ${outcomes ? `<div class="small"><strong class="text-muted">예상 성과:</strong> ${escHtml(outcomes)}</div>` : ''}
+        ${refs.length ? `
+          <div class="small text-muted mt-2">참고 노트: ${refs.map(r => `<span class="badge bg-light text-dark border me-1">${escHtml(r.note_id || '')} (${escHtml(r.activity_date || '')})</span>`).join('')}</div>
+        ` : ''}
+      </div>
+    </div>
+  `;
 }
 
 // ─── 카드/리스트 뷰 전환 ──────────────────────────────────────────────────────
