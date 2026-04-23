@@ -90,7 +90,14 @@
   <a href="/" class="navbar-brand text-decoration-none text-white">
     <i class="bi bi-diagram-3-fill me-2"></i>agenticCRM
   </a>
-  <a href="/" class="btn btn-outline-light btn-sm"><i class="bi bi-arrow-left me-1"></i>대시보드</a>
+  <div class="d-flex align-items-center gap-2">
+    <i class="bi bi-cpu text-white-50"></i>
+    <select id="modelSelect" class="form-select form-select-sm bg-dark text-white border-secondary" style="min-width:220px">
+      <option value="">모델 로딩 중...</option>
+    </select>
+    <span id="modelBadge" class="badge bg-secondary small"></span>
+    <a href="/" class="btn btn-outline-light btn-sm ms-2"><i class="bi bi-arrow-left me-1"></i>대시보드</a>
+  </div>
 </nav>
 
 <!-- 고객 정보 헤더 -->
@@ -359,6 +366,43 @@ const COMPANY_NAME  = "{{ customer.company_name }}";
 // 노트 ↔ NBA 비교 패널의 red-flag 경고를 위한 전역 캐시
 let _customerSalesNotes = [];
 let _lastNBAData = null;
+
+// ─── 모델 선택기 (index.html과 동일 로직) ─────────────────────────────────────
+const modelSelect = document.getElementById('modelSelect');
+const modelBadge  = document.getElementById('modelBadge');
+const PROVIDER_COLORS = { anthropic: 'bg-primary', openrouter: 'bg-success' };
+const PROVIDER_LABELS = { anthropic: 'Anthropic', openrouter: 'OpenRouter' };
+
+let _openrouterAvailable = true;
+
+async function loadModels() {
+  try {
+    const res  = await fetch('/api/models');
+    const data = await res.json();
+    _openrouterAvailable = data.openrouter_available !== false;
+    modelSelect.innerHTML = data.models.map(m => {
+      const isOR = m.provider === 'openrouter';
+      const unavailable = isOR && !_openrouterAvailable;
+      return `<option value="${m.id}"${m.id === data.current ? ' selected' : ''}${unavailable ? ' disabled' : ''}>${m.label} — ${m.description}${unavailable ? ' ⚠️ 키 미설정' : ''}</option>`;
+    }).join('');
+    updateBadge(data.models.find(m => m.id === data.current));
+  } catch (e) {
+    modelSelect.innerHTML = '<option>불러오기 실패</option>';
+  }
+}
+function updateBadge(meta) {
+  if (!meta) return;
+  const color = PROVIDER_COLORS[meta.provider] || 'bg-secondary';
+  modelBadge.className = `badge ${color} small`;
+  modelBadge.textContent = PROVIDER_LABELS[meta.provider] || meta.provider;
+}
+modelSelect.addEventListener('change', async () => {
+  const res = await fetch('/api/model', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify({model: modelSelect.value}) });
+  const data = await res.json();
+  if (data.error) { alert(data.error); loadModels(); return; }
+  updateBadge({ provider: data.provider });
+});
+loadModels();
 
 // ─── 유틸리티 ─────────────────────────────────────────────────────────────────
 function escHtml(s) {
