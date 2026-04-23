@@ -139,15 +139,36 @@
 
   <!-- 고객 목록 -->
   <div class="container pb-5">
-    <div class="d-flex justify-content-between align-items-center mb-3">
+    <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
       <p class="text-muted mb-0 small"><i class="bi bi-hand-index me-1"></i>고객 카드를 클릭하면 상세 분석 페이지로 이동합니다</p>
-      <div class="btn-group btn-group-sm">
-        <button class="btn btn-outline-secondary view-btn active" id="btnCard" onclick="setView('card')">
-          <i class="bi bi-grid-3x3-gap me-1"></i>카드
+      <div class="d-flex gap-2 align-items-center">
+        <button class="btn btn-sm btn-primary" id="btnBulkPersona" onclick="startBulkPersonaUpdate()"
+          title="전체 고객의 페르소나를 순차적으로 업데이트합니다 (증분 — 마지막 업데이트 이후 노트만 반영).">
+          <i class="bi bi-person-badge me-1"></i>전체 페르소나 업데이트
         </button>
-        <button class="btn btn-outline-secondary view-btn" id="btnList" onclick="setView('list')">
-          <i class="bi bi-list-ul me-1"></i>리스트
-        </button>
+        <div class="btn-group btn-group-sm">
+          <button class="btn btn-outline-secondary view-btn active" id="btnCard" onclick="setView('card')">
+            <i class="bi bi-grid-3x3-gap me-1"></i>카드
+          </button>
+          <button class="btn btn-outline-secondary view-btn" id="btnList" onclick="setView('list')">
+            <i class="bi bi-list-ul me-1"></i>리스트
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 전체 페르소나 업데이트 진행 패널 -->
+    <div id="bulkPersonaPanel" class="card shadow-sm mb-3" style="display:none">
+      <div class="card-body p-3">
+        <div class="d-flex align-items-center mb-2">
+          <strong class="small"><i class="bi bi-cpu me-1 text-primary"></i>전체 페르소나 업데이트 진행 상황</strong>
+          <span class="ms-2 badge bg-secondary" id="bulkProgressText">0 / 0</span>
+          <button class="btn btn-sm btn-link ms-auto py-0" onclick="toggleBulkPersonaPanel()"><i class="bi bi-chevron-up"></i>접기</button>
+        </div>
+        <div class="progress mb-2" style="height:8px">
+          <div id="bulkProgressBar" class="progress-bar progress-bar-striped progress-bar-animated bg-primary" role="progressbar" style="width:0%"></div>
+        </div>
+        <div id="bulkProgressList" class="small" style="max-height:260px;overflow-y:auto;border:1px solid #e9ecef;border-radius:6px"></div>
       </div>
     </div>
 
@@ -527,9 +548,17 @@
 <!-- ═══════════════════ TAB 3: 페르소나 ═══════════════════ -->
 <div id="tab-personas" class="tab-pane" style="display:none">
   <div class="container py-4 pb-5">
-    <div class="d-flex align-items-center mb-3">
+    <div class="d-flex align-items-center mb-3 flex-wrap gap-2">
       <h4 class="fw-bold mb-0"><i class="bi bi-person-badge me-2 text-primary"></i>페르소나 전체 조회</h4>
-      <span class="ms-3 badge bg-secondary" id="personasCount">로딩 중...</span>
+      <span class="badge bg-secondary" id="personasCount">로딩 중...</span>
+      <div class="ms-auto btn-group btn-group-sm">
+        <button class="btn btn-outline-secondary view-btn active" id="btnPersonaTableView" onclick="setPersonaView('table')">
+          <i class="bi bi-table me-1"></i>테이블
+        </button>
+        <button class="btn btn-outline-secondary view-btn" id="btnPersonaDetailView" onclick="setPersonaView('detail')">
+          <i class="bi bi-list-task me-1"></i>상세
+        </button>
+      </div>
     </div>
 
     <!-- 필터 바 -->
@@ -553,8 +582,8 @@
       </div>
     </div>
 
-    <!-- 페르소나 테이블 -->
-    <div class="card border-0 shadow-sm">
+    <!-- 페르소나 테이블 뷰 -->
+    <div id="personasTableView" class="card border-0 shadow-sm">
       <div class="table-responsive">
         <table class="table table-hover mb-0 data-table">
           <thead class="table-dark">
@@ -574,6 +603,9 @@
         </table>
       </div>
     </div>
+
+    <!-- 페르소나 상세(카드 스택) 뷰 -->
+    <div id="personasDetailView" style="display:none"></div>
   </div>
 </div>
 
@@ -855,6 +887,86 @@ document.querySelectorAll('#mainTabs .nav-link').forEach(btn => {
 // 마지막 탭 복원
 const savedTab = localStorage.getItem('activeTab') || 'customers';
 document.querySelector(`[data-tab="${savedTab}"]`)?.click();
+
+// ─── 전체 페르소나 업데이트 (대시보드 버튼) ──────────────────────────────────
+function startBulkPersonaUpdate() {
+  const btn = document.getElementById('btnBulkPersona');
+  const panel = document.getElementById('bulkPersonaPanel');
+  const bar = document.getElementById('bulkProgressBar');
+  const text = document.getElementById('bulkProgressText');
+  const list = document.getElementById('bulkProgressList');
+
+  if (!confirm('전체 고객의 페르소나를 순차적으로 업데이트합니다. 시간이 다소 걸릴 수 있습니다. 계속하시겠습니까?')) return;
+
+  btn.disabled = true;
+  const origHtml = btn.innerHTML;
+  btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>실행 중...';
+  panel.style.display = '';
+  bar.style.width = '0%';
+  bar.classList.remove('bg-success', 'bg-warning');
+  bar.classList.add('bg-primary', 'progress-bar-animated');
+  text.textContent = '0 / 0';
+  list.innerHTML = '';
+
+  const lineById = {};
+  const es = new EventSource('/api/run/persona-all');
+
+  es.onmessage = (e) => {
+    let d;
+    try { d = JSON.parse(e.data); } catch { return; }
+    if (d.type === 'progress') {
+      const pct = d.total ? (d.index / d.total) * 100 : 0;
+      bar.style.width = `${pct}%`;
+      text.textContent = `${d.index} / ${d.total}`;
+      const key = d.customer_id;
+      if (!lineById[key]) {
+        const row = document.createElement('div');
+        row.className = 'd-flex align-items-center py-1 px-2 border-bottom';
+        row.innerHTML = `
+          <span class="badge bg-secondary me-2">${d.index}/${d.total}</span>
+          <span class="fw-semibold me-2">${escHtml(d.company_name || d.customer_id)}</span>
+          <span class="text-muted small me-2">${escHtml(d.customer_id)}</span>
+          <span class="ms-auto small" data-role="status">⏳ 분석 중...</span>`;
+        list.appendChild(row);
+        lineById[key] = row;
+        list.scrollTop = list.scrollHeight;
+      }
+      const statusEl = lineById[key].querySelector('[data-role=status]');
+      if (d.status === 'started')
+        statusEl.innerHTML = '<span class="text-muted">⏳ 분석 중...</span>';
+      else if (d.status === 'done')
+        statusEl.innerHTML = '<span class="text-success">✅ 완료</span>';
+      else if (d.status === 'error')
+        statusEl.innerHTML = `<span class="text-danger">❌ ${escHtml(d.error || '오류')}</span>`;
+    } else if (d.type === 'done') {
+      bar.classList.remove('bg-primary', 'progress-bar-animated');
+      bar.classList.add(d.failed ? 'bg-warning' : 'bg-success');
+      text.innerHTML = `${d.total} / ${d.total} — <span class="text-success">성공 ${d.succeeded}</span>${d.failed ? ` · <span class="text-danger">실패 ${d.failed}</span>` : ''} · <span class="text-muted small">${escHtml(d.completed_at || '')}</span>`;
+      es.close();
+      btn.disabled = false;
+      btn.innerHTML = origHtml;
+      // 페르소나 탭 캐시 무효화 → 다음 진입 시 새로고침
+      tabLoaded.personas = false;
+    } else if (d.type === 'error') {
+      alert(`오류: ${d.text || '알 수 없는 오류'}`);
+      es.close();
+      btn.disabled = false;
+      btn.innerHTML = origHtml;
+    }
+  };
+
+  es.onerror = () => {
+    es.close();
+    btn.disabled = false;
+    btn.innerHTML = origHtml;
+    bar.classList.remove('progress-bar-animated');
+  };
+}
+
+function toggleBulkPersonaPanel() {
+  const p = document.getElementById('bulkPersonaPanel');
+  p.style.display = (p.style.display === 'none' || !p.style.display) ? '' : 'none';
+}
 
 // ─── 카드/리스트 뷰 전환 ──────────────────────────────────────────────────────
 function setView(mode) {
@@ -1570,6 +1682,8 @@ async function loadAllPersonas() {
     allPersonas = await res.json();
     filteredPersonas = [...allPersonas];
     renderPersonasTable();
+    // 저장된 뷰 모드 복원 (기본: table)
+    setPersonaView(localStorage.getItem('personasView') || 'table');
   } catch (e) {
     document.getElementById('personasTableBody').innerHTML =
       `<tr><td colspan="7" class="text-center text-danger">로딩 실패: ${e.message}</td></tr>`;
@@ -1622,6 +1736,7 @@ function renderPersonasTable() {
   const tbody = document.getElementById('personasTableBody');
   if (!filteredPersonas.length) {
     tbody.innerHTML = '<tr><td colspan="7" class="text-center py-4 text-muted">데이터가 없습니다.</td></tr>';
+    renderPersonasDetailView();
     return;
   }
   tbody.innerHTML = filteredPersonas.map((p, i) => {
@@ -1640,6 +1755,64 @@ function renderPersonasTable() {
         <td class="small text-muted text-nowrap">${updated}</td>
         <td><button class="btn btn-sm btn-outline-secondary py-0" onclick="event.stopPropagation();showPersonaDetail(${i})"><i class="bi bi-eye"></i></button></td>
       </tr>`;
+  }).join('');
+  renderPersonasDetailView();
+}
+
+// ─── 페르소나 상세(카드 스택) 뷰 ─────────────────────────────────────────────
+function setPersonaView(mode) {
+  const isTable = mode === 'table';
+  document.getElementById('personasTableView').style.display = isTable ? '' : 'none';
+  document.getElementById('personasDetailView').style.display = isTable ? 'none' : '';
+  document.getElementById('btnPersonaTableView').classList.toggle('active', isTable);
+  document.getElementById('btnPersonaDetailView').classList.toggle('active', !isTable);
+  localStorage.setItem('personasView', mode);
+}
+
+function buildPersonaSectionsHtml(p) {
+  // showPersonaDetail의 섹션 구성 로직을 재사용 가능한 헬퍼로 추출
+  const skip = new Set(['customer_id','_company_name','_tier','updated_at']);
+  const sections = [];
+  for (const [k, v] of Object.entries(p)) {
+    if (skip.has(k) || !v) continue;
+    const label = k.replace(/_/g,' ').replace(/\b\w/g, c => c.toUpperCase());
+    let content = '';
+    if (Array.isArray(v)) content = `<ul class="mb-0 ps-3">${v.map(item => {
+      if (item && typeof item === 'object') return `<li><pre class="mb-0 small" style="white-space:pre-wrap">${escHtml(JSON.stringify(item,null,2))}</pre></li>`;
+      return `<li>${escHtml(String(item))}</li>`;
+    }).join('')}</ul>`;
+    else if (typeof v === 'object') content = `<pre class="mb-0 small" style="white-space:pre-wrap">${escHtml(JSON.stringify(v,null,2))}</pre>`;
+    else content = escHtml(String(v));
+    sections.push(`<div class="persona-section"><h6>${label}</h6>${content}</div>`);
+  }
+  return sections.map(s => `<div class="col-md-6">${s}</div>`).join('');
+}
+
+function renderPersonasDetailView() {
+  const container = document.getElementById('personasDetailView');
+  if (!container) return;
+  if (!filteredPersonas.length) {
+    container.innerHTML = '<div class="card border-0 shadow-sm"><div class="card-body text-center py-4 text-muted">데이터가 없습니다.</div></div>';
+    return;
+  }
+  container.innerHTML = filteredPersonas.map((p, i) => {
+    const tier = p._tier || '';
+    const updated = p.updated_at || '—';
+    const company = p._company_name || p.customer_id;
+    return `
+      <div class="card border-0 shadow-sm mb-3">
+        <div class="card-body p-4">
+          <div class="d-flex align-items-center gap-2 mb-3 flex-wrap">
+            ${tier ? `<span class="tier-badge tier-${tier}">${tier}등급</span>` : ''}
+            <h5 class="fw-bold mb-0"><a href="/customer/${p.customer_id}" class="text-decoration-none">${escHtml(company)}</a></h5>
+            <span class="text-muted small">${escHtml(p.customer_id || '')}</span>
+            <span class="ms-auto small text-muted"><i class="bi bi-clock-history me-1"></i>업데이트: ${escHtml(updated)}</span>
+          </div>
+          <div class="row g-2">
+            ${buildPersonaSectionsHtml(p)}
+          </div>
+        </div>
+      </div>`;
   }).join('');
 }
 

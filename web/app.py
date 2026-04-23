@@ -971,5 +971,90 @@ async def api_run_qc(customer_id: str):
     return _agent_sse(customer_id, "qc")
 
 
+def _run_persona_all_thread(customers: list, force: bool, q: queue.Queue, model: str, provider: str) -> None:
+    """전체 고객 페르소나를 순차적으로 업데이트하면서 진행 상황을 queue에 put."""
+    total = len(customers)
+    for i, c in enumerate(customers, 1):
+        cid = c.get("customer_id", "")
+        name = c.get("company_name", cid)
+        try:
+            if force:
+                since_date = None
+            else:
+                existing = dt.get_persona(cid)
+                since_date = existing.get("updated_at") if existing else None
+            q.put({"type": "progress", "index": i, "total": total, "customer_id": cid, "company_name": name, "status": "started"})
+            agent = PersonaAgent(model=model, provider=provider)
+            agent.run(cid, since_date=since_date)
+            q.put({"type": "progress", "index": i, "total": total, "customer_id": cid, "company_name": name, "status": "done"})
+        except Exception as exc:
+            import traceback; traceback.print_exc()
+            q.put({"type": "progress", "index": i, "total": total, "customer_id": cid, "company_name": name, "status": "error", "error": f"{type(exc).__name__}: {exc}"})
+    q.put(None)
+
+
+@app.get("/api/run/persona-all")
+async def api_run_persona_all(force: bool = False):
+    """전체 고객 페르소나 일괄 업데이트 (SSE, 순차 실행).
+    force=false: 각 고객의 마지막 updated_at 이후 노트만 반영 (증분)
+    force=true : 전체 재생성"""
+    if "persona-all" in running_set:
+        async def _busy():
+            yield f'data: {json.dumps({"type": "error", "text": "이미 전체 페르소나 업데이트가 진행 중입니다."})}\n\n'
+        return StreamingResponse(_busy(), media_type="text/event-stream")
+
+    customers = dt.get_all_customers() or []
+    if not customers:
+        async def _empty():
+            yield f'data: {json.dumps({"type": "error", "text": "고객이 없습니다."})}\n\n'
+        return StreamingResponse(_empty(), media_type="text/event-stream")
+
+    selected = _model_setting["model"]
+    meta = MODEL_REGISTRY.get(selected, MODEL_REGISTRY["claude-opus-4-6"])
+    provider = meta["provider"]
+
+    async def event_stream() -> AsyncGenerator[str, None]:
+        q: queue.Queue = queue.Queue()
+        running_set.add("persona-all")
+        t = threading.Thread(
+            target=_run_persona_all_thread,
+            args=(customers, force, q, selected, provider),
+            daemon=True,
+        )
+        t.start()
+
+        succeeded, failed = 0, 0
+        try:
+            while True:
+                try:
+                    msg = q.get(timeout=0.1)
+                except queue.Empty:
+                    yield ": heartbeat\n\n"
+                    continue
+
+                if msg is None:
+                    ts = dt.now_kst_str("%Y-%m-%d %H:%M:%S")
+                    yield f'data: {json.dumps({"type": "done", "total": len(customers), "succeeded": succeeded, "failed": failed, "completed_at": ts}, ensure_ascii=False)}\n\n'
+                    break
+
+                if isinstance(msg, dict) and msg.get("type") == "progress":
+                    status = msg.get("status")
+                    if status == "done":
+                        succeeded += 1
+                    elif status == "error":
+                        failed += 1
+                    yield f'data: {json.dumps(msg, ensure_ascii=False)}\n\n'
+        except Exception as e:
+            yield f'data: {json.dumps({"type": "error", "text": str(e)}, ensure_ascii=False)}\n\n'
+        finally:
+            running_set.discard("persona-all")
+
+    return StreamingResponse(
+        event_stream(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
 # ─── 진입점 ───────────────────────────────────────────────────────────────────
 
