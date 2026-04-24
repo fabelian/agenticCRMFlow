@@ -1,6 +1,6 @@
 # CRM 멀티에이전트 시스템
 
-AI 기반 기관투자자 영업 지원 CRM. Claude 멀티에이전트 파이프라인이 고객 데이터와 영업 노트를 분석하여 고객 선호도 프로파일링, Next Best Action 추천, 활동 일정을 자동 생성합니다.
+AI 기반 기관투자자 영업 지원 CRM. Claude 멀티에이전트 파이프라인이 고객 데이터와 영업 노트를 분석하여 고객 선호도 프로파일링, Next Best Action 추천, 활동 일정 생성, 품질 검수를 자동 수행합니다.
 
 **라이브 데모**: [https://agenticcrm-production-cbeb.up.railway.app/](https://agenticcrm-production-cbeb.up.railway.app/)
 
@@ -8,42 +8,36 @@ AI 기반 기관투자자 영업 지원 CRM. Claude 멀티에이전트 파이프
 
 ## 주요 기능
 
-- **독립 실행 에이전트** — Persona / NBA / Activity / QC 각각 개별 버튼으로 독립 실행, 또는 전체 파이프라인 일괄 실행
-- **선택적 분석 범위** — Persona·NBA는 마지막 실행 이후 입력된 세일즈 노트만 참고하여 증분 업데이트
-- **NBA 승인 워크플로우** — AI 제안 → CRM 담당자 승인 → 세일즈 담당자 승인 3단계 관리
-- **고객 불만 징후 탐지** — `DislikeCheckerAgent`가 선택된 노트의 Action Point를 해당 고객 페르소나의 `explicit_dislikes`와 의미 기반으로 비교하여 위반 항목을 플래그. NBA 최우선 액션과의 비교 패널에도 빨간 경고로 강조
-- **실시간 스트리밍** — SSE(Server-Sent Events)로 각 에이전트 실행 진행 상황 및 완료 시각 실시간 표시
-- **분석 완료 시각 분 단위 표시** — Persona · NBA · Activity 각 섹션에 마지막 업데이트 타임스탬프(`YYYY-MM-DD HH:MM`) 노출
-- **영업 노트 관리** — 새 스키마(Sales_ID, Customer_Feedback, Action_Point 등) 기반 웹 CRUD + 체크박스 벌크 삭제 (페르소나/NBA 연관 결과 유지)
-- **세일즈 노트 CSV 일괄 업로드** — CSV 파싱 → 행별 검증(고객사 매칭, 필수 필드) → 유효 행만 DB 반영 2단계 워크플로우
-- **고객 추가/삭제** — `고객 전체 조회` 탭에서 신규 등록(자동 채번 C0XX) 및 선택 벌크 삭제 (sales_notes/personas/NBA/activities/QC 캐스케이드)
-- **멀티 모델 지원** — Claude Opus/Sonnet(Anthropic), Gemma/Llama/DeepSeek(OpenRouter 무료) 중 선택
-- **자동 DB 전환** — 로컬은 SQLite, Railway 배포 시 PostgreSQL 자동 전환
-- **대시보드 탭 뷰** — 고객 대시보드 / 고객 전체 조회 / 세일즈 노트 전체 조회 / 세일즈 노트 일괄 업로드 / 페르소나 전체 조회 탭 전환 (localStorage 유지)
-- **고객 전체 조회** — 등급·유형·담당 영업·텍스트 검색 필터, 컬럼 정렬, 체크박스 선택, 상세 모달, 고객 추가/삭제 버튼
-- **세일즈 노트 전체 조회** — 고객사·날짜 범위·활동 유형·섹터·담당자·텍스트 검색 필터, 컬럼 정렬, 체크박스 선택, 상세 모달, 노트 추가/삭제 버튼, 고객 불만 징후 탐지 버튼, `고객불만징후감지`/`감지 이유` 컬럼
-- **페르소나 전체 조회** — 등급·텍스트 필터, 컬럼 정렬, 전체 페르소나 내용 상세 모달
-- **노트 현황 표시** — 대시보드 카드에 고객별 영업 노트 건수 및 최근 날짜 표시
+### 에이전트 실행
+- **개별 실행** — 고객 상세 페이지에서 Persona / NBA / Activity / QC 각각 독립 버튼으로 실행, 또는 전체 파이프라인 일괄 실행
+- **대시보드 일괄 실행** — 전체 고객 대상 `Persona / NBA / Activity / QC` 4종 일괄 업데이트 버튼. SSE로 고객별 진행 상황 · 성공 · 실패 · 스킵을 실시간 표시
+- **의존성 자동 스킵** — NBA는 Persona가 없으면, Activity는 NBA가 없으면, QC는 Persona/NBA/Activity 중 하나라도 없으면 해당 고객을 자동 스킵하고 누락 항목을 명시
+- **증분 업데이트** — Persona·NBA는 마지막 실행 이후 추가된 노트만 반영하는 증분 모드(기본) + 전체 재생성(`강제 재생성` 체크박스) 지원
 
----
+### 조회 화면 (탭 구조)
+- **고객 대시보드** — 카드/리스트 뷰, AI Chat 사이드바
+- **고객 전체 조회** — 플랫 테이블, 다축 필터, 컬럼 정렬, 벌크 삭제
+- **세일즈 노트 전체 조회** — 고객사·날짜·활동 유형·섹터·담당자·텍스트 필터, 불만 징후 탐지 결과 컬럼
+- **세일즈 노트 일괄 업로드** — CSV 파싱 → 행별 검증 → 유효 행만 DB 반영 2단계
+- **페르소나 전체 조회** — 테이블/상세 스택 뷰, 사용자 선택 컬럼
+- **전체 NBA 추천** — 고객별 카드 스택. 최우선 액션 vs 노트 Action_Point 비교 + RED FLAG 경고(고객 상세와 동일 스타일)
+- **전체 Activity** — 리스트 뷰(컬럼 클릭 정렬, 기본 기한 오름차순) / 월 달력 뷰 토글. 필터: 고객·기한 from-to·진행 상태·NBA 승인 상태. 달력 셀은 하루 최대 4개 + `+N 더보기`로 전체 리스트 모달. 아이템 클릭 시 Activity 상세 모달
+- **전체 QC 검수** — 카드 스택. 필터: 검색·등급·판정·최소 점수. 정렬: 최근 검수 / 점수 낮은순 / 점수 높은순. 부문별 점수 · critical issues · 재처리 필요 배지
 
-## 화면 구성
+### AI 어시스턴트
+- **CRM 챗 사이드바** — 대시보드 우측 패널. `ChatAgent`가 읽기 전용 도구(고객·페르소나·NBA·Activity·QC·세일즈 노트 조회)로 질문에 맞는 데이터를 끌어와 답변. 서버는 무상태 — 대화 이력은 클라이언트가 유지
+- **멀티 모델** — Claude Opus/Sonnet(Anthropic), OpenRouter 무료 모델(Gemma·GPT-OSS·GLM·MiniMax) 선택
 
-### 초기 화면 (탭 기반)
+### 데이터 품질
+- **NBA 승인 워크플로우** — AI 제안 → CRM 승인 → Sales 승인 3단계. 각 Activity는 연결된 NBA 액션의 승인 상태를 미러링
+- **고객 불만 징후 탐지** — `DislikeCheckerAgent`가 선택 노트의 `Action_Point`를 페르소나 `explicit_dislikes`와 의미 매칭해 RED FLAG 플래그. 결과는 노트에 영속되어 테이블 행 하이라이트 + NBA 비교 패널 경고로 재사용
+- **QC 보고서** — 페르소나 / NBA / Activity / 일관성 각 부문별 점수 + 판정(pass/fail) + critical issues
 
-- **고객 대시보드 탭** — 고객별 등급·AUM·담당자 카드, 분석 완료 현황, 카드/리스트 뷰 전환, 모델 선택
-- **고객 전체 조회 탭** — 전체 고객을 플랫 테이블로 조회, 등급·유형·담당 영업·텍스트 필터, 컬럼 정렬, 체크박스 선택. `고객 추가`(자동 채번) · `선택 삭제`(연관 분석 결과 캐스케이드 + 경고 다이얼로그) 지원
-- **세일즈 노트 탭** — 전체 고객 노트 통합 조회, 고객사·날짜 범위·활동 유형·섹터·담당자·텍스트 필터, 컬럼 정렬, 체크박스 선택, 상세 모달. `노트 추가`(고객사 드롭다운) · `선택 삭제`(페르소나/NBA 유지) · `고객 불만 징후 탐지`(선택 노트에 대해 에이전트 실행) 버튼, `고객불만징후감지` 및 `감지 이유`(페르소나 원문 그대로) 컬럼
-- **세일즈 노트 일괄 업로드 탭** — CSV 업로드 → 행별 파싱/검증 → 유효 행만 DB 반영 2단계 워크플로우
-- **페르소나 탭** — 전체 고객 페르소나 조회, 등급·텍스트 필터, 컬럼 정렬, 상세 내용 모달
-
-### 고객 상세 페이지
-- **전체 분석 실행** — Persona → NBA → Activity → QC 순차 파이프라인 + 실시간 로그 터미널
-- **영업 노트** — 과거 활동 기록 아코디언 목록 (Action_Point 강조 표시), 새 노트 추가 모달
-- **Persona 섹션** — 고객 선호도 프로파일 + `Persona 업데이트` 버튼 + 마지막 업데이트 타임스탬프(분 단위)
-- **NBA 섹션** — 우선순위별 영업 액션 + `NBA 제안` 버튼 + 참고 노트 비교 테이블 + 승인 상태 배지 + 마지막 제안 타임스탬프(분 단위). 최우선 액션 vs 노트 Action_Point 비교 패널에서 해당 노트가 페르소나 `explicit_dislikes`에 해당할 경우 **빨간색 경고 배너 + 카드 테두리 강조** 자동 표시
-- **Activity 섹션** — Activity 일정표 + `Activity 업데이트` 버튼 + NBA 승인 상태 · 진행 상태 컬럼 + 마지막 업데이트 타임스탬프(분 단위)
-- **QC 섹션** — 품질 검수 보고서 + `QC 검수 실행` 버튼
+### 시스템
+- **실시간 스트리밍** — 모든 에이전트 실행은 SSE로 진행 로그 · 완료 시각 실시간 전달
+- **KST 타임스탬프** — 모든 사용자 노출 시각은 한국 표준시(UTC+9), 분 단위 표시
+- **자동 DB 전환** — 로컬 SQLite ↔ Railway PostgreSQL 자동
+- **탭 상태 유지** — localStorage로 마지막 탭 복원, 탭별 lazy load + 캐시 무효화
 
 ---
 
@@ -55,38 +49,56 @@ AI 기반 기관투자자 영업 지원 CRM. Claude 멀티에이전트 파이프
     ▼
 web/app.py (FastAPI)
     │
-    ├── GET    /api/analyze/{id}               ── 전체 파이프라인 (SSE)
-    ├── GET    /api/run/persona/{id}           ── Persona 단독 실행 (SSE, since_date 자동 적용)
-    ├── GET    /api/run/nba/{id}               ── NBA 단독 실행 (SSE, since_date 자동 적용)
-    ├── GET    /api/run/activity/{id}          ── Activity 단독 실행 (SSE)
-    ├── GET    /api/run/qc/{id}                ── QC 단독 실행 (SSE)
-    ├── GET    /api/customers                  ── 전체 고객 목록
-    ├── POST   /api/customers                  ── 고객 신규 생성 (자동 채번)
-    ├── DELETE /api/customers                  ── 고객 벌크 삭제 (연관 결과 캐스케이드)
-    ├── GET    /api/sales-notes/{id}           ── 영업 노트 조회
-    ├── POST   /api/sales-notes                ── 영업 노트 추가
-    ├── DELETE /api/sales-notes                ── 영업 노트 벌크 삭제 (no cascade)
-    ├── POST   /api/sales-notes/upload         ── CSV 파싱 + 행별 검증
-    ├── POST   /api/sales-notes/bulk-commit    ── 유효 행만 DB 반영
-    └── POST   /api/sales-notes/check-dislikes ── 선택 노트의 페르소나 불만 위반 탐지
+    ├── 개별 에이전트 SSE
+    │   ├── GET /api/analyze/{id}         ── 전체 파이프라인 (Orchestrator)
+    │   ├── GET /api/run/persona/{id}     ── Persona 단독 (since_date)
+    │   ├── GET /api/run/nba/{id}         ── NBA 단독 (since_date)
+    │   ├── GET /api/run/activity/{id}    ── Activity 단독
+    │   └── GET /api/run/qc/{id}          ── QC 단독
+    │
+    ├── 전체 고객 일괄 SSE
+    │   ├── GET /api/run/persona-all      ── 페르소나 일괄 (force 옵션)
+    │   ├── GET /api/run/nba-all          ── NBA 일괄 (force 옵션, Persona 미생성 스킵)
+    │   ├── GET /api/run/activity-all     ── Activity 일괄 (NBA 미생성 스킵)
+    │   └── GET /api/run/qc-all           ── QC 일괄 (Persona/NBA/Activity 중 하나라도 없으면 스킵)
+    │
+    ├── 전체 조회
+    │   ├── GET /api/all-personas         ── 전체 페르소나 + 고객 메타
+    │   ├── GET /api/all-nba              ── 전체 NBA + 고객 메타 + 매칭 노트 RED FLAG 조인
+    │   ├── GET /api/all-activities       ── 전체 Activity 플래튼 (기한 오름차순)
+    │   ├── GET /api/all-qc               ── 전체 QC (reviewed_at 내림차순)
+    │   └── GET /api/all-sales-notes      ── 전체 노트 통합 (날짜 내림차순)
+    │
+    ├── CRUD
+    │   ├── GET|POST|DELETE /api/customers                ── 고객 (자동 채번, 캐스케이드 삭제)
+    │   ├── GET|POST|DELETE /api/sales-notes              ── 노트 (페르소나/NBA 유지 삭제)
+    │   ├── POST /api/sales-notes/upload                  ── CSV 파싱 + 행별 검증
+    │   ├── POST /api/sales-notes/bulk-commit             ── 유효 행만 DB insert
+    │   └── POST /api/sales-notes/check-dislikes          ── DislikeCheckerAgent 실행 + 영속
+    │
+    └── AI Chat / 모델
+        ├── POST /api/chat                 ── ChatAgent (tool use, 무상태)
+        ├── GET|POST /api/model(s)         ── 모델 레지스트리
+        └── GET /api/debug(/env)           ── DB/환경 변수 진단
               │
     ┌─────────┴──────────────────────┐
     ▼                                ▼
-OrchestratorAgent (전체 실행)   개별 Agent 직접 호출
+OrchestratorAgent (전체 실행)    개별 Agent 직접 호출
     │ Claude tool_use
-    ├─ PersonaAgent          ←── Customer_Feedback만 분석, since_date 필터
-    ├─ NBAAgent              ←── 최근 3개월 recency 가중치, since_date 필터
-    ├─ ActivityAgent         ←── NBA 승인 상태 미러링, Activity 진행 상태 관리
-    ├─ QCAgent               ←── 전체 에이전트 출력 품질 검수
-    └─ DislikeCheckerAgent   ←── 고객별 배치로 Action_Point vs explicit_dislikes 판정
+    ├─ PersonaAgent           ←── Customer_Feedback만 분석, since_date 필터
+    ├─ NBAAgent               ←── 최근 3개월 recency 가중치, since_date 필터
+    ├─ ActivityAgent          ←── NBA 승인 상태 미러링, 진행 상태 관리
+    ├─ QCAgent                ←── 전체 에이전트 출력 검수 (점수+판정)
+    ├─ DislikeCheckerAgent    ←── 고객별 배치, Action_Point ↔ explicit_dislikes
+    └─ ChatAgent              ←── 읽기 전용 다중 도구로 자연어 질의 응답
               │
      src/tools/data_tools.py
               │
   ┌───────────┴───────────┐
 DB (SQLite/PostgreSQL)  data/*.json
-customers               customers.json (11개 고객, DB upsert)
-personas, nba_results   sales_notes.json (새 스키마, DB 시드)
-activities, qc_reports  action_plans.json
+customers               customers.json (DB upsert)
+personas, nba_results   sales_notes.json (시드)
+activities, qc_reports  action_plans.json (읽기 전용)
 sales_notes             ※ sales_notes.data JSON에 _red_flag 메타 영속
 ```
 
@@ -94,11 +106,40 @@ sales_notes             ※ sales_notes.data JSON에 _red_flag 메타 영속
 
 | 에이전트 | 입력 | 분석 내용 | 출력 |
 |---|---|---|---|
-| **PersonaAgent** | `Customer_Feedback` 필드 (since_date 이후) | 선호 섹터·콘텐츠 유형·분석 스타일·명시적 요구사항 | 고객 선호도 프로파일 |
-| **NBAAgent** | 페르소나 + 최근 3개월 노트 (recency 가중치) | 우선순위별 영업 액션, 구체적 기한(날짜), 최근 Action_Point 비교 | NBA 추천 + 승인 워크플로우 |
-| **ActivityAgent** | NBA 추천 결과 | 구체적 실행 일정, NBA 승인 상태 반영, Activity 진행 상태 | Activity 스케줄 |
-| **QCAgent** | 모든 에이전트 최신 출력 | 일관성·완결성·품질 검수 | QC 보고서 (pass/fail + 점수) |
-| **DislikeCheckerAgent** | 페르소나 `explicit_dislikes` + 선택된 노트의 `Action_Point` (고객별 배치) | Action_Point가 고객이 명시한 불만/거부 패턴에 해당하는지 의미 기반 매칭 | 노트별 `{is_red_flag, matched_dislike, reason}` — `sales_notes.data`에 영속 |
+| **PersonaAgent** | `Customer_Feedback` (since_date 이후) | 선호 섹터·콘텐츠 유형·분석 스타일·명시적 요구사항·explicit_dislikes | 고객 선호도 프로파일 |
+| **NBAAgent** | 페르소나 + 최근 3개월 노트 (recency 가중치) | 우선순위별 영업 액션, 구체적 기한(YYYY-MM-DD), `top_priority_comparison` | NBA 추천 + 3단계 승인 워크플로우 |
+| **ActivityAgent** | NBA 추천 결과 | 구체적 실행 일정, NBA 승인 상태 미러링, 진행 상태(pending/in_progress/completed/cancelled) | Activity 스케줄 |
+| **QCAgent** | 모든 에이전트 최신 출력 | 페르소나/NBA/Activity/일관성 부문별 점수, critical issues | QC 보고서 (0~100점 + verdict) |
+| **DislikeCheckerAgent** | 페르소나 `explicit_dislikes` + 선택 노트의 `Action_Point` (고객별 배치) | 의미 기반 매칭 | 노트별 `{is_red_flag, matched_dislike, reason}` — `sales_notes.data`에 영속 |
+| **ChatAgent** | 사용자 자연어 질문 + 읽기 전용 조회 도구 (전체 고객/페르소나/NBA/Activity/QC/노트) | 질문 의도에 맞는 도구를 선택·호출 후 답변 합성 | 대시보드 사이드바 응답 (무상태) |
+
+---
+
+## 화면 구성
+
+### 대시보드 탭
+- **고객 대시보드** — 카드/리스트 뷰 토글, 등급·AUM·담당자·노트 건수 표시
+  - 상단 일괄 실행 버튼 4종: `[전체 페르소나 업데이트(primary)] [전체 NBA 추천(warning)] [전체 Activity 업데이트(success)] [전체 QC 검수(info)]` — 각 버튼 옆에 `강제 재생성` 체크박스(해당되는 에이전트만)
+  - 각 버튼 클릭 시 진행 패널이 나타나 고객별 상태(분석 중/완료/스킵/오류)와 전체 진행률 바를 실시간 표시
+  - 우측 AI Chat 사이드바
+- **고객 전체 조회** — 플랫 테이블, 등급·유형·담당 영업·텍스트 필터, 컬럼 정렬, 체크박스 선택, `고객 추가`(자동 채번 `C0XX`) · `선택 삭제`(연관 분석 결과 캐스케이드)
+- **세일즈 노트 전체 조회** — 고객사·날짜 범위·활동 유형·섹터·담당자·텍스트 필터, 컬럼 정렬, 체크박스 선택, 상세 모달, `노트 추가` · `선택 삭제`(페르소나/NBA 유지) · `고객 불만 징후 탐지` 버튼, `고객불만징후감지` 및 `감지 이유` 컬럼
+- **세일즈 노트 일괄 업로드** — CSV 업로드 → 행별 파싱/검증 → 유효 행만 DB 반영
+- **페르소나 전체 조회** — 테이블/상세 스택 뷰 토글, 등급·텍스트 필터, 사용자 선택 컬럼(최대 3개)
+- **전체 NBA 추천** — 고객별 카드 스택. 카드: 회사명 · tier · 위험도 배지 · 분석일 · 요약 · **최우선 액션 vs 노트 Action_Point 비교(3컬럼 테이블)** · 추천 액션 표 · 피할 것 · 예상 성과 · 참고 노트. 매칭 노트가 RED FLAG인 경우 경고 배너 + 빨간 테두리 자동 표시
+- **전체 Activity** — 리스트/달력 뷰 토글(기본 리스트)
+  - 리스트: 기한/고객사/ID/제목/유형/진행상태/NBA 승인/연계 NBA 컬럼. **헤더 클릭 정렬**(같은 컬럼 다시 클릭 시 방향 토글). 한국어 locale 비교로 고객사 정렬
+  - 달력: 월 뷰. 셀당 최대 4개 activity(유형별 보더 컬러) + `+N 더보기`로 날짜별 전체 리스트 모달. 아이템 클릭 → Activity 상세 모달
+  - 필터: 고객사 · 기한 From/To · 진행 상태 · NBA 승인 상태 (상태·승인 값은 DB 실제 값에서 자동 추출)
+- **전체 QC 검수** — 카드 스택. 카드 헤더: tier/회사명/판정 배지/재처리 필요 배지/검수 시각/상세 링크. 본문: 큰 점수 circle + 부문별 점수 · 종합 평가 · critical issues(severity별 색상). 필터: 검색·등급·판정·최소 점수. 정렬: 최근 검수 / 점수 낮은순 / 점수 높은순
+
+### 고객 상세 페이지
+- **전체 분석 실행** — Persona → NBA → Activity → QC 순차 파이프라인 + 실시간 로그 터미널
+- **영업 노트** — 과거 활동 기록 아코디언 (Action_Point 강조), 새 노트 추가 모달
+- **Persona 섹션** — 고객 선호도 프로파일, `Persona 업데이트`, 마지막 업데이트 KST 타임스탬프
+- **NBA 섹션** — 우선순위별 영업 액션, `NBA 제안`, 참고 노트 비교 테이블, 승인 상태 배지. 최우선 액션 vs 노트 비교 패널에서 해당 노트가 RED FLAG인 경우 빨간 경고 배너 + 카드 테두리 강조
+- **Activity 섹션** — Activity 일정표, `Activity 업데이트`, NBA 승인 상태 · 진행 상태 컬럼
+- **QC 섹션** — 품질 검수 보고서, `QC 검수 실행`, 점수 circle + 판정 배지 + critical issues
 
 ---
 
@@ -122,7 +163,7 @@ sales_notes             ※ sales_notes.data JSON에 _red_flag 메타 영속
 }
 ```
 
-> `Customer_Feedback` — PersonaAgent의 유일한 분석 소스  
+> `Customer_Feedback` — PersonaAgent의 유일한 분석 소스
 > `Action_Point` — NBAAgent가 가장 우선 참고하는 필드 · DislikeCheckerAgent의 판정 대상
 
 **시스템 메타 필드** (DislikeCheckerAgent 실행 후 자동 추가):
@@ -132,7 +173,7 @@ sales_notes             ※ sales_notes.data JSON에 _red_flag 메타 영속
 | `_red_flag` | Action Point가 페르소나 불만/거부 항목에 해당하면 `true` |
 | `_red_flag_matched` | 매칭된 `explicit_dislikes` 항목 원문 |
 | `_red_flag_reason` | 판정 근거 한 문장 |
-| `_red_flag_checked_at` | 탐지 실행 타임스탬프 (`YYYY-MM-DD HH:MM`) |
+| `_red_flag_checked_at` | 탐지 실행 타임스탬프 (KST) |
 
 ---
 
@@ -146,7 +187,7 @@ NBA 추천 결과의 각 액션은 3단계 승인 상태를 가집니다:
 | `crm_approved` | CRM 담당자가 검토·승인한 상태 | 파랑 |
 | `sales_approved` | 세일즈 담당자가 최종 승인, 즉시 실행 가능 | 초록 |
 
-Activity 섹션에서 각 Activity의 NBA 승인 상태와 진행 상태(`pending` / `in_progress` / `completed` / `cancelled`)를 함께 확인할 수 있습니다.
+Activity 섹션의 각 Activity는 연결된 NBA 액션의 승인 상태를 그대로 미러링하며, 진행 상태(`pending` / `in_progress` / `completed` / `cancelled`)를 별도로 관리합니다.
 
 ---
 
@@ -161,8 +202,28 @@ Activity 섹션에서 각 Activity의 NBA 승인 상태와 진행 상태(`pendin
 4. 결과를 각 노트의 `_red_flag*` 필드로 영속 → 테이블 재렌더링
 
 **결과 표시**
-- **테이블** — `고객불만징후감지` 컬럼에 체크 표시, `감지 이유` 컬럼에 매칭된 페르소나 원문 노출, 행 배경을 빨간색(`#ffcfcf`)으로 강조
-- **고객 상세 페이지 NBA 섹션** — NBA의 `top_priority_comparison.note_id`가 플래그된 노트일 경우 비교 패널에 빨간 경고 배너 + 카드 테두리 강조 자동 표시 (추가 LLM 호출 없이 영속된 메타를 재활용)
+- **세일즈 노트 테이블** — 행 배경 빨간색 강조, `고객불만징후감지`·`감지 이유` 컬럼
+- **고객 상세 NBA 섹션** — `top_priority_comparison.note_id`가 플래그된 노트일 경우 비교 패널에 빨간 경고 배너 + 카드 테두리
+- **전체 NBA 탭** — 동일 비교 스타일. 백엔드 `/api/all-nba`가 매칭 노트의 `_red_flag` 메타를 NBA 레코드에 조인해 내려줌 (추가 LLM 호출 없음)
+
+---
+
+## QC 검수 보고서 스키마
+
+```json
+{
+  "overall_score": 0,
+  "verdict": "pass_excellent | pass_good | conditional_pass | fail",
+  "reviewed_at": "2026-04-24 14:32",
+  "persona_review":    { "score": 0, "strengths": [], "issues": [], "recommendations": [] },
+  "nba_review":        { "score": 0, "strengths": [], "issues": [], "recommendations": [] },
+  "activity_review":   { "score": 0, "strengths": [], "issues": [], "recommendations": [] },
+  "consistency_review":{ "score": 0, "issues": [] },
+  "critical_issues":   [ { "severity": "critical|major|minor", "description": "", "fix": "" } ],
+  "overall_summary": "",
+  "reprocess_required": false
+}
+```
 
 ---
 
@@ -197,11 +258,18 @@ ANTHROPIC_API_KEY=sk-ant-...
 
 # OpenRouter 무료 모델 사용 시 (선택)
 OPENROUTER_API_KEY=sk-or-...
+
+# Railway 배포 시 자동 설정 (로컬은 SQLite 자동 사용)
+# DATABASE_URL=postgresql://...
 ```
 
 ### 웹 서버 실행
 
 ```bash
+# 개발 (자동 리로드)
+uvicorn web.app:app --host 0.0.0.0 --port 8000 --reload
+
+# 프로덕션
 uvicorn web.app:app --host 0.0.0.0 --port 8000
 ```
 
@@ -224,38 +292,70 @@ python src/main.py --all
 
 ## API 엔드포인트
 
+### 개별 고객 실행 (SSE)
+
+| Method | Path | 설명 |
+|---|---|---|
+| `GET` | `/api/analyze/{id}` | 전체 파이프라인 (Orchestrator) |
+| `GET` | `/api/run/persona/{id}?force=...` | Persona 단독 (기본 증분, `force=true`면 전체 재생성) |
+| `GET` | `/api/run/nba/{id}?force=...` | NBA 단독 (기본 증분) |
+| `GET` | `/api/run/activity/{id}` | Activity 단독 |
+| `GET` | `/api/run/qc/{id}` | QC 단독 |
+
+### 전체 고객 일괄 실행 (SSE)
+
+| Method | Path | 설명 |
+|---|---|---|
+| `GET` | `/api/run/persona-all?force=...` | 전체 페르소나 일괄 |
+| `GET` | `/api/run/nba-all?force=...` | 전체 NBA 일괄 (Persona 미생성 스킵) |
+| `GET` | `/api/run/activity-all` | 전체 Activity 일괄 (NBA 미생성 스킵) |
+| `GET` | `/api/run/qc-all` | 전체 QC 일괄 (Persona/NBA/Activity 중 하나라도 없으면 스킵) |
+
+### 조회
+
 | Method | Path | 설명 |
 |---|---|---|
 | `GET` | `/api/customers` | 전체 고객 목록 |
-| `POST` | `/api/customers` | 고객 신규 생성 (customer_id 미지정 시 자동 채번 C0XX) |
-| `DELETE` | `/api/customers` | 고객 벌크 삭제 — sales_notes/personas/nba_results/activities/qc_reports 캐스케이드 |
-| `GET` | `/api/customer/{id}` | 고객 분석 결과 조회 (persona/nba/activities/qc + `activities_updated_at`) |
-| `GET` | `/api/analyze/{id}` | 전체 파이프라인 실행 — SSE |
-| `GET` | `/api/run/persona/{id}` | Persona 단독 실행 — SSE (마지막 업데이트 이후 노트만 분석) |
-| `GET` | `/api/run/nba/{id}` | NBA 단독 실행 — SSE (마지막 제안 이후 노트만 분석) |
-| `GET` | `/api/run/activity/{id}` | Activity 단독 실행 — SSE |
-| `GET` | `/api/run/qc/{id}` | QC 단독 실행 — SSE |
-| `GET` | `/api/sales-notes/{id}` | 고객별 영업 노트 목록 |
-| `POST` | `/api/sales-notes` | 새 영업 노트 추가 |
-| `DELETE` | `/api/sales-notes` | 영업 노트 벌크 삭제 (연관 페르소나/NBA 유지 — **no cascade**) |
-| `POST` | `/api/sales-notes/upload` | CSV 파일 파싱 + 행별 검증 (DB 저장 없음) |
-| `POST` | `/api/sales-notes/bulk-commit` | upload에서 검증된 유효 행만 DB insert |
-| `POST` | `/api/sales-notes/check-dislikes` | 선택 노트의 페르소나 불만 위반 탐지 — DislikeCheckerAgent 실행 + 결과 영속 |
-| `GET` | `/api/all-sales-notes` | 전체 고객 영업 노트 통합 조회 (날짜 내림차순) |
-| `GET` | `/api/all-personas` | 전체 고객 페르소나 조회 (고객 정보 포함) |
-| `GET` | `/api/models` | 사용 가능 모델 목록 |
+| `POST` | `/api/customers` | 고객 신규 생성 (자동 채번) |
+| `DELETE` | `/api/customers` | 벌크 삭제 (연관 결과 캐스케이드) |
+| `GET` | `/api/customer/{id}` | 고객 분석 결과 (persona/nba/activities/qc + updated_at) |
+| `GET` | `/api/sales-notes/{id}` | 고객별 영업 노트 |
+| `POST` | `/api/sales-notes` | 영업 노트 추가 |
+| `DELETE` | `/api/sales-notes` | 영업 노트 벌크 삭제 (연관 페르소나/NBA 유지) |
+| `POST` | `/api/sales-notes/upload` | CSV 파싱 + 행별 검증 |
+| `POST` | `/api/sales-notes/bulk-commit` | 유효 행만 DB insert |
+| `POST` | `/api/sales-notes/check-dislikes` | DislikeCheckerAgent 실행 + 영속 |
+| `GET` | `/api/all-sales-notes` | 전체 노트 통합 (날짜 내림차순) |
+| `GET` | `/api/all-personas` | 전체 페르소나 + 고객 메타 |
+| `GET` | `/api/all-nba` | 전체 NBA + 고객 메타 + 매칭 노트 RED FLAG 조인 |
+| `GET` | `/api/all-activities` | 전체 Activity 플래튼 (기한 오름차순) |
+| `GET` | `/api/all-qc` | 전체 QC (reviewed_at 내림차순) |
+
+### AI Chat / 시스템
+
+| Method | Path | 설명 |
+|---|---|---|
+| `POST` | `/api/chat` | CRM 챗 어시스턴트 (ChatAgent, 무상태) |
+| `GET` | `/api/models` | 모델 레지스트리 + 현재 선택 |
 | `POST` | `/api/model` | 분석 모델 변경 |
-| `GET` | `/api/debug` | DB 상태 진단 — 테이블 목록, 행 수, customers.json 확인 |
-| `GET` | `/api/debug/env` | 환경 변수 진단 — DATABASE_URL(마스킹), Railway 환경변수 |
+| `GET` | `/api/debug` | DB 상태 진단 (행 수, customers.json 존재) |
+| `GET` | `/api/debug/env` | 환경 변수 진단 (DATABASE_URL 마스킹) |
 
 ### SSE 이벤트 형식
 
-각 SSE 엔드포인트는 아래 3가지 이벤트를 스트리밍합니다:
-
+**개별 실행**:
 ```json
 {"type": "log",   "text": "에이전트 실행 로그..."}
-{"type": "done",  "completed_at": "2026-04-17 14:32:05"}
+{"type": "done",  "completed_at": "2026-04-24 14:32:05"}
 {"type": "error", "text": "오류 메시지..."}
+```
+
+**일괄 실행** (추가 이벤트):
+```json
+{"type": "progress", "index": 3, "total": 11, "customer_id": "C003",
+ "company_name": "한국투자증권", "status": "started|done|skipped|error", "error": "..."}
+{"type": "done", "total": 11, "succeeded": 8, "failed": 1, "skipped": 2,
+ "completed_at": "2026-04-24 14:32:05"}
 ```
 
 ---
@@ -266,32 +366,33 @@ python src/main.py --all
 agenticCRM/
 ├── data/
 │   ├── customers.json        # 고객 기본 정보 (읽기 전용)
-│   ├── sales_notes.json      # 영업 노트 초기 데이터 (DB 시드용, 새 스키마)
+│   ├── sales_notes.json      # 영업 노트 초기 데이터 (DB 시드용)
 │   └── action_plans.json     # 기존 액션 플랜 (읽기 전용)
 ├── src/
 │   ├── agents/
-│   │   ├── base_agent.py             # 공통 Agentic Loop (max_tokens 연속 생성, OpenRouter 오류 가드)
-│   │   ├── orchestrator.py           # 전체 파이프라인 조율
+│   │   ├── base_agent.py             # 공통 Agentic Loop (max_tokens 연속 생성, OpenRouter 가드)
+│   │   ├── orchestrator.py           # 전체 파이프라인 조율 (tool_use)
 │   │   ├── persona_agent.py          # Customer_Feedback 기반 선호도 분석
-│   │   ├── nba_agent.py              # recency 가중치 NBA 추천 + 승인 워크플로우
+│   │   ├── nba_agent.py              # recency 가중치 NBA + 3단계 승인
 │   │   ├── activity_agent.py         # NBA → Activity 변환 + 진행 상태 관리
-│   │   ├── qc_agent.py               # 품질 검수
-│   │   └── dislike_checker_agent.py  # 선택 노트 Action_Point ↔ 페르소나 explicit_dislikes 매칭
+│   │   ├── qc_agent.py               # 품질 검수 (부문별 점수 + verdict)
+│   │   ├── dislike_checker_agent.py  # Action_Point ↔ explicit_dislikes 매칭
+│   │   └── chat_agent.py             # CRM 챗 어시스턴트 (다중 읽기 도구)
 │   ├── db/
-│   │   └── database.py       # SQLAlchemy 모델 & 엔진
+│   │   └── database.py       # SQLAlchemy 모델 & 엔진 (SQLite/PostgreSQL 자동)
 │   ├── tools/
-│   │   ├── data_tools.py     # 데이터 액세스 레이어 (since_date 필터 지원)
+│   │   ├── data_tools.py     # 데이터 액세스 레이어 (since_date 필터)
 │   │   └── openrouter_client.py
 │   └── main.py               # CLI 진입점
 ├── web/
-│   ├── app.py                # FastAPI 앱 & API 라우트 (개별 에이전트 SSE 포함)
+│   ├── app.py                # FastAPI 앱 & API 라우트 (개별/일괄 SSE, 전체 조회, CRUD, Chat)
 │   └── templates/
-│       ├── index.html        # 고객 대시보드
-│       └── customer.html     # 고객 상세 — 4개 독립 섹션 카드
-├── output/                   # 분석 보고서 저장 (.gitignore)
+│       ├── index.html        # 대시보드 (7개 탭 + AI Chat 사이드바)
+│       └── customer.html     # 고객 상세 (4개 섹션 카드)
+├── output/                   # 분석 보고서 (.gitignore)
 ├── crm.db                    # SQLite DB (.gitignore)
-├── sample_c002_dislike_action_points.csv  # 불만 탐지 테스트용 CSV 픽스처 (C002, 5건)
-├── test_sales_notes_uploads.csv           # CSV 일괄 업로드 테스트 픽스처
+├── sample_c002_dislike_action_points.csv  # 불만 탐지 테스트 픽스처
+├── test_sales_notes_uploads.csv           # CSV 업로드 테스트 픽스처
 ├── .env.example
 └── requirements.txt
 ```
@@ -326,7 +427,7 @@ agenticCRM/
 
 **DB 시딩 방식**: 앱 시작 시 `customers.json`, `sales_notes.json`, `personas.json`을 PostgreSQL에 자동 삽입합니다. customers 테이블은 `psycopg2`로 직접 upsert하여 Railway 환경에서의 안정성을 높였습니다.
 
-**배포 후 진단**: 아래 엔드포인트로 DB 상태를 확인할 수 있습니다.
+**배포 후 진단**:
 ```
 GET /api/debug      ← 테이블 행 수, customers.json 존재 여부
 GET /api/debug/env  ← DATABASE_URL 마스킹, Railway 환경변수
@@ -338,6 +439,6 @@ GET /api/debug/env  ← DATABASE_URL 마스킹, Railway 환경변수
 
 - **Backend**: FastAPI, SQLAlchemy, Uvicorn
 - **AI**: Anthropic Claude API (tool_use), OpenRouter
-- **DB**: SQLite (로컬) / PostgreSQL (프로덕션)
-- **Frontend**: Bootstrap 5.3, Bootstrap Icons, Vanilla JS (SSE)
+- **DB**: SQLite (로컬) / PostgreSQL (프로덕션, Railway)
+- **Frontend**: Bootstrap 5.3, Bootstrap Icons, Vanilla JS (SSE, EventSource)
 - **Config**: python-dotenv
