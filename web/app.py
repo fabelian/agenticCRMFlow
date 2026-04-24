@@ -880,7 +880,8 @@ async def api_all_activities():
 
 @app.get("/api/all-nba")
 async def api_all_nba():
-    """전체 고객 NBA 추천 조회 (고객 정보 포함, 최신 분석일 내림차순)"""
+    """전체 고객 NBA 추천 조회 (고객 정보 포함, 최신 분석일 내림차순).
+    top_priority_comparison.note_id가 가리키는 노트의 _red_flag 메타도 조인해 첨부."""
     nba_list = dt.get_all_nba()
     customers = {c["customer_id"]: c for c in dt.get_all_customers() if "customer_id" in c}
     for n in nba_list:
@@ -888,6 +889,20 @@ async def api_all_nba():
         if cid and cid in customers:
             n["_company_name"] = customers[cid].get("company_name", cid)
             n["_tier"] = customers[cid].get("tier", "")
+
+        # 최우선 비교 노트의 red_flag 메타 조인
+        cmp = n.get("top_priority_comparison") or {}
+        cmp_note_id = cmp.get("note_id") if isinstance(cmp, dict) else None
+        if cmp_note_id and cid:
+            for note in dt.get_sales_notes(cid) or []:
+                if note.get("note_id") == cmp_note_id:
+                    n["_cmp_note_flag"] = {
+                        "is_red_flag": bool(note.get("_red_flag")),
+                        "matched": note.get("_red_flag_matched") or "",
+                        "reason": note.get("_red_flag_reason") or "",
+                    }
+                    break
+
     nba_list.sort(
         key=lambda x: x.get("generated_at") or x.get("analysis_date") or "",
         reverse=True,

@@ -688,6 +688,8 @@
 </div>
 
 <style>
+  /* 최우선 액션 vs 노트 Action_Point 비교 테이블 (customer.html 스타일 이식) */
+  .comparison-table td { vertical-align: top; font-size: .85rem; }
   /* Activity 뱃지 (customer.html 스타일 이식) */
   .approval-badge { font-size: .72rem; padding: .2em .55em; border-radius: 10px; font-weight: 600; display:inline-block; }
   .appr-ai      { background: #fff3cd; color: #856404; }
@@ -1856,6 +1858,39 @@ function renderAllNba() {
   listEl.innerHTML = filtered.map(n => renderNbaCard(n)).join('');
 }
 
+function renderNbaComparison(cmp, flag) {
+  const isFlagged = !!(flag && flag.is_red_flag);
+  const matched = isFlagged ? (flag.matched || '') : '';
+  const reason  = isFlagged ? (flag.reason || '') : '';
+  const cardCls = isFlagged ? 'card bg-light p-3 mb-3 border border-danger border-3' : 'card bg-light border-0 p-3 mb-3';
+  const noteBadgeCls = isFlagged ? 'bg-danger' : 'bg-secondary';
+  const noteTextCls  = isFlagged ? 'text-danger fw-bold' : 'text-muted';
+  const flaggedRow = isFlagged ? `
+    <tr>
+      <td colspan="3" class="pt-2 pb-2" style="color:#dc3545; font-weight:700; font-size:.9rem; background:#fff5f5; border-top:1px solid #f5c2c7">
+        <i class="bi bi-exclamation-triangle-fill me-1"></i>
+        <span style="text-decoration:underline">경고:</span> 이 노트의 Action Point는 고객 페르소나의 <strong>'명시적 불만/거부 항목'</strong>에 해당합니다 — <span style="background:#fde2e4;padding:1px 6px;border-radius:4px">"${escHtml(matched)}"</span>
+        ${reason ? `<div class="mt-1" style="color:#842029;font-weight:500;font-size:.82rem">↳ ${escHtml(reason)}</div>` : ''}
+      </td>
+    </tr>` : '';
+  return `
+    <div class="${cardCls}">
+      <h6 class="fw-bold mb-2">
+        <i class="bi bi-arrow-left-right me-1 text-primary"></i>최우선 액션 vs 노트 Action_Point 비교
+        ${isFlagged ? '<span class="badge bg-danger ms-2"><i class="bi bi-flag-fill me-1"></i>RED FLAG</span>' : ''}
+      </h6>
+      <table class="table table-sm comparison-table mb-0">
+        ${flaggedRow}
+        <tr>
+          <td width="45%"><span class="badge ${noteBadgeCls} me-1">노트 ${escHtml(cmp.note_id||'')} (${escHtml(cmp.activity_date||'')})</span><br><span class="${noteTextCls}">${escHtml(cmp.action_point_from_note||'')}</span></td>
+          <td width="10%" class="text-center text-muted">→</td>
+          <td width="45%"><span class="badge bg-primary me-1">NBA 최우선</span><br>${escHtml(cmp.nba_top_priority_action||'')}</td>
+        </tr>
+        ${cmp.rationale ? `<tr><td colspan="3" class="text-muted pt-2" style="font-size:.8rem"><i class="bi bi-info-circle me-1"></i>${escHtml(cmp.rationale)}</td></tr>` : ''}
+      </table>
+    </div>`;
+}
+
 function renderNbaCard(n) {
   const cid = n.customer_id || '';
   const name = n._company_name || cid;
@@ -1901,14 +1936,7 @@ function renderNbaCard(n) {
       </div>
       <div class="card-body">
         ${summary ? `<p class="mb-3"><strong class="small text-muted d-block mb-1">요약</strong>${escHtml(summary)}</p>` : ''}
-        ${cmp.note_id ? `
-          <div class="alert alert-info py-2 small mb-3">
-            <div><strong>최우선 액션 vs 최근 노트</strong></div>
-            <div class="mt-1"><span class="text-muted">노트(${escHtml(cmp.note_id)}, ${escHtml(cmp.activity_date || '')}):</span> ${escHtml(cmp.action_point_from_note || '')}</div>
-            <div><span class="text-muted">NBA 최우선:</span> ${escHtml(cmp.nba_top_priority_action || '')}</div>
-            ${cmp.rationale ? `<div class="text-muted mt-1">근거: ${escHtml(cmp.rationale)}</div>` : ''}
-          </div>
-        ` : ''}
+        ${cmp.note_id ? renderNbaComparison(cmp, n._cmp_note_flag) : ''}
         ${actions.length ? `
           <div class="mb-3">
             <strong class="small text-muted d-block mb-1">추천 액션 (우선순위 순)</strong>
