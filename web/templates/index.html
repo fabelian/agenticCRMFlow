@@ -778,15 +778,15 @@
         <div class="table-responsive">
           <table class="table table-hover table-sm align-middle mb-0" style="font-size:.85rem">
             <thead class="table-dark">
-              <tr>
-                <th style="width:110px">기한 ▲</th>
-                <th>고객사</th>
-                <th style="width:110px">ID</th>
-                <th>제목</th>
-                <th style="width:80px">유형</th>
-                <th style="width:90px">진행상태</th>
-                <th style="width:90px">NBA 승인</th>
-                <th>연계 NBA</th>
+              <tr id="activitiesListHeaderRow">
+                <th style="width:110px; cursor:pointer" data-sort-key="due_date">기한 <span class="sort-arrow"></span></th>
+                <th style="cursor:pointer" data-sort-key="company">고객사 <span class="sort-arrow"></span></th>
+                <th style="width:110px; cursor:pointer" data-sort-key="id">ID <span class="sort-arrow"></span></th>
+                <th style="cursor:pointer" data-sort-key="title">제목 <span class="sort-arrow"></span></th>
+                <th style="width:80px; cursor:pointer" data-sort-key="type">유형 <span class="sort-arrow"></span></th>
+                <th style="width:90px; cursor:pointer" data-sort-key="activity_status">진행상태 <span class="sort-arrow"></span></th>
+                <th style="width:90px; cursor:pointer" data-sort-key="nba_approval">NBA 승인 <span class="sort-arrow"></span></th>
+                <th style="cursor:pointer" data-sort-key="linked_nba">연계 NBA <span class="sort-arrow"></span></th>
               </tr>
             </thead>
             <tbody id="activitiesListBody">
@@ -1466,6 +1466,31 @@ function toggleBulkActivityPanel() {
 let _allActivitiesCache = [];
 let _activityView = 'list';
 let _calendarAnchor = null;  // Date — 달력이 보여주는 달의 1일
+let _activitySort = { key: 'due_date', dir: 'asc' };
+
+function _activitySortValue(a, key) {
+  switch (key) {
+    case 'due_date':       return a.due_date || '';
+    case 'company':        return a._company_name || a.customer_id || '';
+    case 'id':             return a.id || a.activity_id || '';
+    case 'title':          return a.title || '';
+    case 'type':           return a.type || '';
+    case 'activity_status':return a.activity_status?.status || a.status || '';
+    case 'nba_approval':   return a.nba_approval?.status || '';
+    case 'linked_nba':     return a.nba_approval?.linked_nba_title || a.linked_nba_action || '';
+    default: return '';
+  }
+}
+
+function setActivitySort(key) {
+  if (_activitySort.key === key) {
+    _activitySort.dir = _activitySort.dir === 'asc' ? 'desc' : 'asc';
+  } else {
+    _activitySort.key = key;
+    _activitySort.dir = 'asc';
+  }
+  renderAllActivities();
+}
 
 const ACT_APPR_LABEL = { ai_proposed: ['appr-ai','AI 제안'], crm_approved: ['appr-crm','CRM 승인'], sales_approved: ['appr-sales','Sales 승인'] };
 const ACT_STAT_LABEL = { pending: ['act-pending','대기'], in_progress: ['act-progress','진행중'], completed: ['act-done','완료'], cancelled: ['act-cancelled','취소'] };
@@ -1577,11 +1602,44 @@ function renderAllActivities() {
 
 function renderActivityList(items) {
   const body = document.getElementById('activitiesListBody');
-  if (!items.length) {
+
+  // 헤더: 화살표 갱신 + 클릭 바인딩 (한 번만)
+  const headerRow = document.getElementById('activitiesListHeaderRow');
+  if (headerRow && !headerRow.dataset.bound) {
+    headerRow.querySelectorAll('th[data-sort-key]').forEach(th => {
+      th.addEventListener('click', () => setActivitySort(th.dataset.sortKey));
+    });
+    headerRow.dataset.bound = '1';
+  }
+  if (headerRow) {
+    headerRow.querySelectorAll('th[data-sort-key]').forEach(th => {
+      const arrow = th.querySelector('.sort-arrow');
+      if (!arrow) return;
+      if (th.dataset.sortKey === _activitySort.key) {
+        arrow.textContent = _activitySort.dir === 'asc' ? '▲' : '▼';
+      } else {
+        arrow.textContent = '';
+      }
+    });
+  }
+
+  // 정렬 적용 (원본 배열 훼손 방지를 위해 복사)
+  const sorted = items.slice().sort((x, y) => {
+    const vx = _activitySortValue(x, _activitySort.key);
+    const vy = _activitySortValue(y, _activitySort.key);
+    // 빈 값은 항상 뒤로
+    if (vx === '' && vy === '') return 0;
+    if (vx === '') return 1;
+    if (vy === '') return -1;
+    const cmp = String(vx).localeCompare(String(vy), 'ko');
+    return _activitySort.dir === 'asc' ? cmp : -cmp;
+  });
+
+  if (!sorted.length) {
     body.innerHTML = '<tr><td class="text-center py-4 text-muted" colspan="8">표시할 Activity가 없습니다.</td></tr>';
     return;
   }
-  body.innerHTML = items.map(a => {
+  body.innerHTML = sorted.map(a => {
     const nbaStatus = a.nba_approval?.status || '';
     const [aCls, aText] = ACT_APPR_LABEL[nbaStatus] || ['appr-ai', nbaStatus || '-'];
     const actSt = a.activity_status?.status || a.status || 'pending';
